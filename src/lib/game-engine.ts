@@ -161,9 +161,14 @@ export function discardCard(
     cards: p.cards.filter((c) => c.id !== cardId),
   }));
 
+  // Insert the card at a random position in the deck
+  const newDeck = [...state.deck];
+  const randomIndex = Math.floor(Math.random() * (newDeck.length + 1));
+  newDeck.splice(randomIndex, 0, card);
+
   return {
     ...newState,
-    discardPile: [...state.discardPile, card],
+    deck: newDeck,
     logs: [...state.logs, createLog(`${player.name} discarded a card`)],
   };
 }
@@ -196,10 +201,13 @@ export function forceSwap(
 
   const { drawn, remaining } = drawCards(state.deck, 1);
 
+  const newDeck = [...remaining];
+  const randomIndex = Math.floor(Math.random() * (newDeck.length + 1));
+  newDeck.splice(randomIndex, 0, card);
+
   let newState: GameState = {
     ...state,
-    deck: remaining,
-    discardPile: [...state.discardPile, card],
+    deck: newDeck,
   };
 
   newState = updatePlayer(newState, targetId, (p) => ({

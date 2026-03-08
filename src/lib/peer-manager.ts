@@ -29,8 +29,7 @@ export function usePeerManager() {
   // ─── Handle incoming messages (HOST) ─────────────────────────────
   const handleHostMessage = useCallback(
     (message: PeerMessage, fromPeerId: string) => {
-      const { gameState, setGameState, broadcastState, sendToPeer } =
-        useGameStore.getState();
+      const { gameState, setGameState, sendToPeer } = useGameStore.getState();
       if (!gameState) return;
 
       switch (message.type) {
@@ -264,8 +263,7 @@ export function usePeerManager() {
   // ─── Send Action (from any player) ──────────────────────────────
   const sendAction = useCallback(
     (payload: ActionRequestPayload) => {
-      const { isHost, gameState, setGameState, broadcastState, sendToHost } =
-        useGameStore.getState();
+      const { isHost, gameState, sendToHost } = useGameStore.getState();
 
       if (isHost && gameState) {
         // Host processes locally

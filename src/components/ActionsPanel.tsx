@@ -147,21 +147,15 @@ export default function ActionsPanel({
           `}
         >
           <span className="text-lg">�️</span>
-          <span>Discard</span>
+          <span>Return</span>
         </button>
       </div>
 
-      {/* Deck / Discard Info */}
+      {/* Deck Info */}
       <div className="flex items-center justify-center gap-6 text-xs text-slate-500 pt-2">
         <span className="flex items-center gap-1">
           🃏 Deck:{" "}
           <strong className="text-slate-300">{gameState.deck.length}</strong>
-        </span>
-        <span className="flex items-center gap-1">
-          🗑️ Discard:{" "}
-          <strong className="text-slate-300">
-            {gameState.discardPile.length}
-          </strong>
         </span>
       </div>
     </div>
