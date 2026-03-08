@@ -2,7 +2,7 @@
 export type Role =
   | "Policeman"
   | "Politician"
-  | "Businessman"
+  | "Businesswoman"
   | "Fisc"
   | "Terrorist"
   | "Colonel"
@@ -11,7 +11,7 @@ export type Role =
 export const ALL_ROLES: Role[] = [
   "Policeman",
   "Politician",
-  "Businessman",
+  "Businesswoman",
   "Fisc",
   "Terrorist",
   "Colonel",
@@ -21,7 +21,7 @@ export const ALL_ROLES: Role[] = [
 export const ROLE_EMOJI: Record<Role, string> = {
   Policeman: "🛡️",
   Politician: "🏛️",
-  Businessman: "💼",
+  Businesswoman: "💼",
   Fisc: "📋",
   Terrorist: "💣",
   Colonel: "⭐",
@@ -31,7 +31,7 @@ export const ROLE_EMOJI: Record<Role, string> = {
 export const ROLE_COLOR: Record<Role, string> = {
   Policeman: "#3b82f6", // blue
   Politician: "#8b5cf6", // purple
-  Businessman: "#f59e0b", // amber
+  Businesswoman: "#f59e0b", // amber
   Fisc: "#10b981", // emerald
   Terrorist: "#ef4444", // red
   Colonel: "#f97316", // orange
@@ -42,7 +42,7 @@ export const ROLE_DESCRIPTION: Record<Role, string> = {
   Policeman:
     "Inspect another player's card. Can swap it for a new one from the deck. Blocks other Policemen.",
   Politician: "Change your hand with new cards from the deck.",
-  Businessman: "Take 4 coins.",
+  Businesswoman: "Take 4 coins.",
   Fisc: "Tax players: take 1 coin from anyone with 7+ coins. Stops others from taking 2 coins.",
   Terrorist: "Kill a player (cost: 3 coins).",
   Colonel:

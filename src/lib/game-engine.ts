@@ -103,17 +103,25 @@ export function startGame(state: GameState): GameState {
 }
 
 // ─── Game Actions ────────────────────────────────────────────────────
-export function addCoin(state: GameState, playerId: string): GameState {
+export function addCoin(
+  state: GameState,
+  playerId: string,
+  amount: number = 1,
+): GameState {
   return updatePlayer(state, playerId, (p) => ({
     ...p,
-    coins: Math.min(10, p.coins + 1),
+    coins: Math.min(10, p.coins + amount),
   }));
 }
 
-export function removeCoin(state: GameState, playerId: string): GameState {
+export function removeCoin(
+  state: GameState,
+  playerId: string,
+  amount: number = 1,
+): GameState {
   return updatePlayer(state, playerId, (p) => ({
     ...p,
-    coins: Math.max(0, p.coins - 1),
+    coins: Math.max(0, p.coins - amount),
   }));
 }
 

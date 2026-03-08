@@ -49,10 +49,10 @@ export function usePeerManager() {
 
           switch (action) {
             case "ADD_COIN":
-              newState = addCoin(newState, playerId);
+              newState = addCoin(newState, playerId, (data as number) || 1);
               break;
             case "REMOVE_COIN":
-              newState = removeCoin(newState, playerId);
+              newState = removeCoin(newState, playerId, (data as number) || 1);
               break;
             case "DRAW_CARD":
               newState = drawCard(newState, playerId);
