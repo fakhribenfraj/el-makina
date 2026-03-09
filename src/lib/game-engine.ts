@@ -115,16 +115,25 @@ export class GameEngine {
             response.targetId,
           );
         }
+      } else if (this.state.pendingAction.status === "thief_phase") {
+        if (response.targetId) {
+          this.resolveThiefBluff(
+            this.state.pendingAction,
+            response.playerId,
+            response.targetId,
+          );
+        }
       } else {
         this.resolveBluff(this.state.pendingAction, response.playerId);
       }
       return;
     }
 
-    // Handle Pass or Timeout or take_one_as_fisc
+    // Handle Pass or Timeout or take_one_as_fisc or take_one_as_thief
     if (
       response.type === "pass" ||
       response.type === "take_one_as_fisc" ||
+      response.type === "take_one_as_thief" ||
       response.playerId === "system"
     ) {
       if (this.state.pendingAction.status === "fisc_phase") {
@@ -156,10 +165,40 @@ export class GameEngine {
         return;
       }
 
+      if (this.state.pendingAction.status === "thief_phase") {
+        const thiefClaimants = this.state.pendingAction.responses
+          .filter((r) => r.type === "take_one_as_thief")
+          .map((r) => r.playerId);
+
+        const requiredPlayers = this.state.players.filter(
+          (p) => p.isAlive && !thiefClaimants.includes(p.id),
+        );
+
+        const thiefPasses = this.state.pendingAction.responses.filter(
+          (r) =>
+            r.type === "pass" &&
+            requiredPlayers.some((p) => p.id === r.playerId),
+        );
+
+        if (
+          thiefPasses.length >= requiredPlayers.length ||
+          response.playerId === "system"
+        ) {
+          this.resolveCurrentAction();
+        } else {
+          this.callbacks.broadcast({
+            type: "state_update",
+            gameState: this.state,
+          });
+        }
+        return;
+      }
+
       const otherResponded = this.state.pendingAction.responses.filter(
         (r) =>
           r.type === "pass" ||
           r.type === "take_one_as_fisc" ||
+          r.type === "take_one_as_thief" ||
           r.playerId === "system",
       );
 
@@ -190,6 +229,31 @@ export class GameEngine {
           this.state.pendingAction.responses =
             this.state.pendingAction.responses.filter(
               (r) => r.type === "take_one_as_fisc",
+            );
+
+          if (this.state.settings.timerDuration > 0) {
+            this.state.actionTimer = this.state.settings.timerDuration;
+            this.startResponseTimer();
+          } else {
+            this.state.actionTimer = null;
+          }
+
+          this.callbacks.broadcast({
+            type: "state_update",
+            gameState: this.state,
+          });
+        } else if (
+          this.state.pendingAction.type === "steal_2_coins" &&
+          this.state.pendingAction.responses.some(
+            (r) => r.type === "take_one_as_thief",
+          )
+        ) {
+          // Transition to thief_phase
+          this.state.pendingAction.status = "thief_phase";
+          // Remove old passes and system responses, keep take_one_as_thief
+          this.state.pendingAction.responses =
+            this.state.pendingAction.responses.filter(
+              (r) => r.type === "take_one_as_thief",
             );
 
           if (this.state.settings.timerDuration > 0) {
@@ -431,6 +495,75 @@ export class GameEngine {
     });
   }
 
+  private resolveThiefBluff(
+    action: GameAction,
+    callerId: string,
+    thiefPlayerId: string,
+  ): void {
+    const thiefPlayer = this.state.players.find((p) => p.id === thiefPlayerId);
+    const caller = this.state.players.find((p) => p.id === callerId);
+
+    if (!thiefPlayer || !caller) {
+      return;
+    }
+
+    const isActuallyBluff = !thiefPlayer.cards.some(
+      (c) => c.character === "thief",
+    );
+
+    if (isActuallyBluff) {
+      // Thief player was lying
+      if (thiefPlayer.cards.length > 0) {
+        const lostCard = thiefPlayer.cards.shift()!;
+        this.state.deck.push({
+          ...lostCard,
+          isRevealed: false,
+          isKnown: false,
+        });
+      }
+      caller.coins += 3;
+
+      // Remove the thief claim from responses so they don't take coins later
+      action.responses = action.responses.filter(
+        (r) =>
+          !(r.playerId === thiefPlayerId && r.type === "take_one_as_thief"),
+      );
+
+      // If no more thieves left, resolve
+      if (!action.responses.some((r) => r.type === "take_one_as_thief")) {
+        this.resolveCurrentAction();
+        return;
+      }
+    } else {
+      // Thief player was telling the truth
+      if (caller.cards.length > 0) {
+        const lostCard = caller.cards.shift()!;
+        this.state.deck.push({
+          ...lostCard,
+          isRevealed: false,
+          isKnown: false,
+        });
+      }
+      thiefPlayer.coins += 2;
+
+      // Replace the thief player's card
+      const cardIndex = thiefPlayer.cards.findIndex(
+        (c) => c.character === "thief",
+      );
+      if (cardIndex !== -1) {
+        const oldCard = thiefPlayer.cards.splice(cardIndex, 1)[0];
+        this.state.deck.push({ ...oldCard, isRevealed: false, isKnown: false });
+        this.state.deck = shuffle(this.state.deck);
+        thiefPlayer.cards.push(this.state.deck.shift()!);
+      }
+    }
+
+    this.callbacks.broadcast({
+      type: "state_update",
+      gameState: this.state,
+    });
+  }
+
   private resolveCurrentAction(): void {
     if (!this.state.pendingAction) return;
 
@@ -459,7 +592,30 @@ export class GameEngine {
       }
     }
 
-    this.state = resolveAction(action, this.state);
+    // Handle Thief penalty (multiple thieves taking 1 coin each)
+    if (action.type === "steal_2_coins") {
+      const thiefResponses = action.responses.filter(
+        (r) => r.type === "take_one_as_thief",
+      );
+      const target = this.state.players.find((p) => p.id === action.targetId);
+      if (target && thiefResponses.length > 0) {
+        for (const resp of thiefResponses) {
+          const thiefPlayer = this.state.players.find(
+            (p) => p.id === resp.playerId,
+          );
+          if (thiefPlayer && target.coins >= 1) {
+            target.coins -= 1;
+            thiefPlayer.coins += 1;
+          }
+        }
+        // Skip main action resolution for steal when thief claims exist
+      } else {
+        // No thief claims, proceed with normal action resolution
+        this.state = resolveAction(action, this.state);
+      }
+    } else {
+      this.state = resolveAction(action, this.state);
+    }
 
     const winner = checkWinner(this.state);
     if (winner) {

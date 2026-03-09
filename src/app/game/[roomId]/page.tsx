@@ -467,15 +467,28 @@ export default function GamePage() {
             gameState={gameState}
             timeLeft={timeLeft ?? gameState.actionTimer ?? 0}
             showTimer={gameState.settings.timerDuration > 0}
-            canCounter={false}
+            canCounter={
+              (gameState.pendingAction?.status === "pending" &&
+                ((gameState.pendingAction.type === "steal_2_coins" &&
+                  myPlayer?.cards.some((c) => c.character === "thief")) ||
+                  (gameState.pendingAction.type === "take_2_coins" &&
+                    myPlayer?.cards.some((c) => c.character === "fisc")) ||
+                  (gameState.pendingAction.type === "kill_terrorist" &&
+                    myPlayer?.cards.some((c) => c.character === "colonel")) ||
+                  (gameState.pendingAction.type === "inspect_policeman" &&
+                    myPlayer?.cards.some(
+                      (c) => c.character === "policeman",
+                    )))) ||
+              false
+            }
             canCallBluff={
-              gameState.pendingAction.status === "pending"
+              gameState.pendingAction?.status === "pending"
                 ? !!gameState.pendingAction.claimedCharacter
                 : true
             }
             onCounter={() =>
               handleCounter(
-                gameState.pendingAction.type === "steal_2_coins"
+                gameState.pendingAction?.type === "steal_2_coins"
                   ? "thief"
                   : "fisc",
               )
@@ -515,9 +528,7 @@ export default function GamePage() {
               <p className="text-[#a0a0a0]">
                 {gameState.pendingAction.status === "counter_phase"
                   ? "Someone might challenge your block..."
-                  : gameState.pendingAction.status === "fisc_phase"
-                    ? "Other players are deciding if you are telling the truth..."
-                    : "Everyone is deciding if you are telling the truth..."}
+                  : "Everyone is deciding if you are telling the truth..."}
               </p>
               {gameState.settings.timerDuration > 0 && (
                 <div className="mt-6 flex justify-center">

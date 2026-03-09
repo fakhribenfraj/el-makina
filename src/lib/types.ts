@@ -24,12 +24,14 @@ export type ResponseType =
   | "pass"
   | "counter"
   | "call_bluff"
-  | "take_one_as_fisc";
+  | "take_one_as_fisc"
+  | "take_one_as_thief";
 
 export type ActionStatus =
   | "pending"
   | "counter_phase"
   | "fisc_phase"
+  | "thief_phase"
   | "resolved"
   | "blocked";
 
