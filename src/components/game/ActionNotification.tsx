@@ -40,13 +40,29 @@ export function ActionNotification({
           {currentPlayer.name} is taking an action
         </p>
 
-        <div className="bg-[#0f3460] rounded-lg p-4 mb-4">
-          <p className="text-2xl font-bold text-[#eaeaea]">{actionLabel}</p>
+        <div
+          className="rounded-lg p-6 mb-6 shadow-xl border-t-4"
+          style={{
+            backgroundColor: action.claimedCharacter
+              ? `${CHARACTERS[action.claimedCharacter]?.color}22`
+              : "#0f3460",
+            borderColor: action.claimedCharacter
+              ? CHARACTERS[action.claimedCharacter]?.color
+              : "transparent",
+          }}
+        >
+          <p className="text-2xl font-black text-[#eaeaea] tracking-tight">
+            {actionLabel}
+          </p>
           {action.claimedCharacter && (
-            <p className="text-sm text-[#a0a0a0] mt-1">
-              ({CHARACTERS[action.claimedCharacter]?.icon}{" "}
-              {CHARACTERS[action.claimedCharacter]?.name})
-            </p>
+            <div className="flex items-center justify-center gap-2 mt-3 p-2 bg-black/30 rounded-full w-fit mx-auto px-4 border border-white/10">
+              <span className="text-xl">
+                {CHARACTERS[action.claimedCharacter]?.icon}
+              </span>
+              <span className="text-sm font-bold uppercase tracking-widest text-white/90">
+                {CHARACTERS[action.claimedCharacter]?.name}
+              </span>
+            </div>
           )}
         </div>
 

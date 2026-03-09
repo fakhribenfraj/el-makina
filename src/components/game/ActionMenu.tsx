@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Player, ActionType } from "@/lib/types";
 import { Button } from "../ui/Button";
 import { getActionLabel, getCharacterForAction } from "@/lib/actions";
+import { CHARACTERS } from "@/lib/characters";
 
 interface ActionMenuProps {
   player: Player;
@@ -92,7 +93,7 @@ export function ActionMenu({
 
       {/* Drawer */}
       <div
-        className={`fixed bottom-0 left-0 right-0 bg-[#16213e]/95 backdrop-blur-md border-t-4 border-[#e94560] rounded-t-[2.5rem] p-8 space-y-6 shadow-[0_-15px_40px_rgba(0,0,0,0.6)] z-50 transition-all duration-500 transform ${
+        className={`fixed bottom-0 left-0 right-0 bg-[#16213e]/95 backdrop-blur-md border-t-4 border-[#e94560] rounded-t-[2.5rem] p-8 h-[80dvh] flex flex-col shadow-[0_-15px_40px_rgba(0,0,0,0.6)] z-50 transition-all duration-500 transform ${
           isOpen ? "translate-y-0" : "translate-y-full"
         }`}
       >
@@ -102,7 +103,7 @@ export function ActionMenu({
           onClick={() => setIsOpen(false)}
         />
 
-        <div className="flex justify-between items-center mb-2 border-b border-[#0f3460] pb-6">
+        <div className="flex justify-between items-center mb-6 border-b border-[#0f3460] pb-6 shrink-0">
           <div className="flex-1 text-center">
             <h3
               className={`text-2xl font-black italic tracking-tighter uppercase ${isMyTurn ? "text-[#e94560]" : "text-[#a0a0a0]"}`}
@@ -134,78 +135,93 @@ export function ActionMenu({
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 pb-2">
-          <Button
-            variant="secondary"
-            className="w-full justify-center h-14 text-lg"
-            onClick={() => {
-              onActionSelect("take_1_coin");
-              setIsOpen(false);
-            }}
-            disabled={disabled || !isMyTurn}
-          >
-            Take 1 Coin
-          </Button>
-
-          <Button
-            variant="secondary"
-            className="w-full justify-center h-14 text-lg"
-            onClick={() => {
-              onActionSelect("take_2_coins");
-              setIsOpen(false);
-            }}
-            disabled={disabled || !isMyTurn}
-          >
-            Take 2 Coins
-          </Button>
-        </div>
-
-        {specialActionsAvailable.length > 0 && (
-          <div className="pt-2">
-            <p className="text-xs text-[#a0a0a0] mb-2 uppercase tracking-widest font-bold opacity-60">
-              Character Special Actions
-            </p>
-            <div className="space-y-3">
-              {specialActionsAvailable.map((actionObj) => (
-                <Button
-                  key={actionObj.type}
-                  variant="success"
-                  className="w-full justify-center py-4 text-lg shadow-lg font-bold"
-                  onClick={() => {
-                    onActionSelect(
-                      actionObj.type,
-                      undefined,
-                      getCharacterForAction(actionObj.type),
-                    );
-                    setIsOpen(false);
-                  }}
-                  disabled={disabled || !isMyTurn || !actionObj.enabled}
-                >
-                  {getActionLabel(actionObj.type)}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="pt-2 space-y-3">
-          {player.coins >= 7 && (
+        <div className="flex-1 overflow-y-auto space-y-6 pr-2 pb-8">
+          <div className="grid grid-cols-2 gap-3 pb-2">
             <Button
-              variant="danger"
-              className="w-full justify-center py-4 text-lg shadow-lg font-bold"
+              variant="secondary"
+              className="w-full justify-center h-14 text-lg"
               onClick={() => {
-                onActionSelect("kill_7_coins");
+                onActionSelect("take_1_coin");
                 setIsOpen(false);
               }}
               disabled={disabled || !isMyTurn}
             >
-              Kill Player (7 coins)
+              Take 1 Coin
             </Button>
-          )}
-        </div>
 
-        {/* Extra padding for safe areas on mobile */}
-        <div className="h-4" />
+            <Button
+              variant="secondary"
+              className="w-full justify-center h-14 text-lg"
+              onClick={() => {
+                onActionSelect("take_2_coins");
+                setIsOpen(false);
+              }}
+              disabled={disabled || !isMyTurn}
+            >
+              Take 2 Coins
+            </Button>
+          </div>
+
+          {specialActionsAvailable.length > 0 && (
+            <div className="pt-2">
+              <p className="text-xs text-[#a0a0a0] mb-2 uppercase tracking-widest font-bold opacity-60">
+                Character Special Actions
+              </p>
+              <div className="space-y-3">
+                {specialActionsAvailable.map((actionObj) => {
+                  const characterType = getCharacterForAction(actionObj.type);
+                  const character = characterType
+                    ? CHARACTERS[characterType]
+                    : null;
+
+                  return (
+                    <Button
+                      key={actionObj.type}
+                      variant="secondary"
+                      style={{
+                        backgroundColor: character?.color,
+                        borderColor: character?.color,
+                        color: "#fff",
+                        textShadow: "0 1px 2px rgba(0,0,0,0.5)",
+                      }}
+                      className="w-full justify-start px-6 py-4 text-lg shadow-lg font-bold border-2 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                      onClick={() => {
+                        onActionSelect(
+                          actionObj.type,
+                          undefined,
+                          characterType,
+                        );
+                        setIsOpen(false);
+                      }}
+                      disabled={disabled || !isMyTurn || !actionObj.enabled}
+                    >
+                      <span className="mr-3 text-2xl">{character?.icon}</span>
+                      <span>{getActionLabel(actionObj.type)}</span>
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="pt-2 space-y-3">
+            {player.coins >= 7 && (
+              <Button
+                variant="danger"
+                className="w-full justify-center py-4 text-lg shadow-lg font-bold"
+                onClick={() => {
+                  onActionSelect("kill_7_coins");
+                  setIsOpen(false);
+                }}
+                disabled={disabled || !isMyTurn}
+              >
+                Kill Player (7 coins)
+              </Button>
+            )}
+          </div>
+
+          {/* Extra padding for safe areas on mobile */}
+        </div>
       </div>
     </>
   );
