@@ -63,6 +63,10 @@ export interface ActionResponse {
   timestamp: number;
 }
 
+export interface GameSettings {
+  timerDuration: number; // in seconds, 0 means no timer
+}
+
 export interface GameState {
   players: Player[];
   deck: Card[];
@@ -72,6 +76,7 @@ export interface GameState {
   actionTimer: number | null;
   winner: Player | null;
   lastAction: GameAction | null;
+  settings: GameSettings;
 }
 
 export interface GameRoom {
@@ -102,7 +107,8 @@ export type GameEvent =
     }
   | { type: "join_rejected"; reason: string }
   | { type: "action_rejected"; reason: string }
-  | { type: "timer_tick"; timeLeft: number }
+  | { type: "timer_tick"; timeLeft: number | null }
+  | { type: "settings_update"; settings: GameSettings }
   | { type: "room_closed" };
 
 export interface CharacterDefinition {

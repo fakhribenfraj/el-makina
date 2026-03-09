@@ -339,12 +339,17 @@ export default function GamePage() {
       {/* Middle: Current player info */}
       <div className="flex-1 flex flex-col items-center justify-start py-8 overflow-y-auto scrollbar-hide">
         {currentPlayer && (
-          <div className="text-center mb-4">
-            <p className="text-lg text-[#a0a0a0]">
-              {currentPlayer.name}'s turn
-            </p>
+          <div className="text-center mb-6 px-6 py-4 bg-[#16213e]/40 backdrop-blur-md rounded-2xl border border-[#e94560]/30 shadow-[0_0_20px_rgba(233,69,96,0.1)] animate-in fade-in zoom-in duration-500">
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-xs font-bold uppercase tracking-widest text-[#e94560] animate-pulse">
+                Current Turn
+              </span>
+              <h2 className="text-3xl font-black text-white italic tracking-tighter">
+                {currentPlayer.name}
+              </h2>
+            </div>
             {(gameState?.actionTimer !== null || timeLeft !== null) && (
-              <div className="mt-2">
+              <div className="mt-3 scale-110">
                 <Timer timeLeft={timeLeft ?? gameState?.actionTimer ?? 0} />
               </div>
             )}
@@ -369,15 +374,6 @@ export default function GamePage() {
           onActionSelect={handleActionSelect}
           isMyTurn={isMyTurn}
         />
-      )}
-
-      {!isMyTurn && !gameState?.pendingAction && (
-        <div className="fixed bottom-20 left-4 right-4 text-center p-3 bg-[#16213e]/80 backdrop-blur-sm rounded-xl border border-[#0f3460] z-20">
-          <p className="text-[#a0a0a0] flex items-center justify-center gap-2">
-            <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
-            Waiting for {currentPlayer?.name}...
-          </p>
-        </div>
       )}
 
       {/* Modals */}
@@ -434,6 +430,7 @@ export default function GamePage() {
             }
             gameState={gameState}
             timeLeft={timeLeft ?? gameState.actionTimer ?? 0}
+            showTimer={gameState.settings.timerDuration > 0}
             canCounter={false}
             canCallBluff={
               gameState.pendingAction.status === "pending"
@@ -462,9 +459,11 @@ export default function GamePage() {
                   ? "Someone might challenge your block..."
                   : "Everyone is deciding if you are lying or not..."}
               </p>
-              <div className="mt-6 flex justify-center">
-                <Timer timeLeft={timeLeft ?? gameState.actionTimer ?? 0} />
-              </div>
+              {gameState.settings.timerDuration > 0 && (
+                <div className="mt-6 flex justify-center">
+                  <Timer timeLeft={timeLeft ?? gameState.actionTimer ?? 0} />
+                </div>
+              )}
             </div>
           </div>
         )}

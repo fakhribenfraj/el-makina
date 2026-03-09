@@ -12,6 +12,7 @@ interface ActionNotificationProps {
   currentPlayer: Player | null;
   gameState: GameState | null;
   timeLeft: number;
+  showTimer?: boolean;
   canCounter: boolean;
   canCallBluff: boolean;
   onCounter: () => void;
@@ -25,6 +26,7 @@ export function ActionNotification({
   currentPlayer,
   gameState,
   timeLeft,
+  showTimer = true,
   canCounter,
   canCallBluff,
   onCounter,
@@ -98,9 +100,11 @@ export function ActionNotification({
           )}
         </div>
 
-        <div className="flex justify-center mb-4">
-          <Timer timeLeft={timeLeft} />
-        </div>
+        {showTimer && (
+          <div className="flex justify-center mb-4">
+            <Timer timeLeft={timeLeft} />
+          </div>
+        )}
 
         <div
           className={`grid ${canCallBluff || action.type === "take_2_coins" || action.status === "counter_phase" ? "grid-cols-2" : "grid-cols-1"} gap-4`}

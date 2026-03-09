@@ -49,7 +49,8 @@ export default function LobbyPage() {
     const { GameEngine } = require("@/lib/game-engine");
     const { hidePrivateData } = require("@/lib/abilities");
 
-    const initialState = GameEngine.createInitialState(players);
+    const { gameSettings } = usePeerStore.getState();
+    const initialState = GameEngine.createInitialState(players, gameSettings);
 
     // Setup engine callbacks for the host
     const callbacks = {

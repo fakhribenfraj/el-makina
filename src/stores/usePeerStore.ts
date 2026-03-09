@@ -12,6 +12,7 @@ interface PeerState {
   myPlayerId: string | null;
   roomCode: string | null;
   players: Player[];
+  gameSettings: { timerDuration: number };
   connectionStatus: "disconnected" | "connecting" | "connected" | "error";
   error: string | null;
 
@@ -24,6 +25,7 @@ interface PeerState {
   addPlayer: (player: Player) => void;
   removePlayer: (playerId: string) => void;
   setMyPlayerId: (id: string) => void;
+  updateSettings: (settings: { timerDuration: number }) => void;
   onEvent?: (event: GameEvent) => void;
   setOnEvent: (callback: (event: GameEvent) => void) => void;
 }
@@ -36,6 +38,7 @@ export const usePeerStore = create<PeerState>((set, get) => ({
   myPlayerId: null,
   roomCode: null,
   players: [],
+  gameSettings: { timerDuration: 10 },
   connectionStatus: "disconnected",
   error: null,
   onEvent: undefined,
@@ -276,6 +279,13 @@ export const usePeerStore = create<PeerState>((set, get) => ({
   setMyPlayerId: (id: string) => {
     set({ myPlayerId: id });
   },
+
+  updateSettings: (settings) => {
+    set({ gameSettings: settings });
+    if (get().isHost) {
+      get().broadcast({ type: "settings_update", settings });
+    }
+  },
 }));
 
 function handleData(senderId: string, data: GameEvent, get: () => PeerState) {
@@ -323,6 +333,10 @@ function handleData(senderId: string, data: GameEvent, get: () => PeerState) {
 
     case "join_accepted":
       setPlayers(data.players);
+      break;
+
+    case "settings_update":
+      usePeerStore.setState({ gameSettings: data.settings });
       break;
 
     case "players_update":

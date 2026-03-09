@@ -6,6 +6,7 @@ import {
   Card,
   CharacterType,
   GameEvent,
+  GameSettings,
 } from "./types";
 import {
   resolveAction,
@@ -47,21 +48,37 @@ export class GameEngine {
 
     action.status = "pending";
     this.state.pendingAction = action;
-    this.state.actionTimer = 10;
+
+    if (this.state.settings.timerDuration > 0) {
+      this.state.actionTimer = this.state.settings.timerDuration;
+      this.startResponseTimer();
+    } else {
+      this.state.actionTimer = null;
+    }
 
     this.callbacks.broadcast({
       type: "action_proposed",
       action,
     });
-
-    this.startResponseTimer();
   }
 
   processResponse(response: ActionResponse): void {
     if (!this.state.pendingAction) return;
 
+    // Check if player already responded in this phase (prevent duplicate passes)
+    if (response.playerId !== "system") {
+      const alreadyResponded = this.state.pendingAction.responses.some(
+        (r) => r.playerId === response.playerId,
+      );
+      if (alreadyResponded) return;
+    }
+
     this.state.pendingAction.responses.push(response);
 
+    const alivePlayers = this.state.players.filter((p) => p.isAlive);
+    const otherPlayersCount = alivePlayers.length - 1;
+
+    // Instant resolution: Counter
     if (
       response.type === "counter" &&
       this.state.pendingAction.status === "pending"
@@ -69,8 +86,15 @@ export class GameEngine {
       this.state.pendingAction.status = "counter_phase";
       this.state.pendingAction.counteredBy = response.playerId;
       this.state.pendingAction.counterCharacter = response.characterUsed;
-      this.state.actionTimer = 10;
-      this.startResponseTimer();
+      // Reset responses for the counter phase challenges
+      this.state.pendingAction.responses = [];
+
+      if (this.state.settings.timerDuration > 0) {
+        this.state.actionTimer = this.state.settings.timerDuration;
+        this.startResponseTimer();
+      } else {
+        this.state.actionTimer = null;
+      }
 
       this.callbacks.broadcast({
         type: "state_update",
@@ -79,6 +103,7 @@ export class GameEngine {
       return;
     }
 
+    // Instant resolution: Call Bluff (Lying!)
     if (response.type === "call_bluff") {
       if (this.state.pendingAction.status === "counter_phase") {
         this.resolveCounterBluff(this.state.pendingAction, response.playerId);
@@ -88,21 +113,47 @@ export class GameEngine {
       return;
     }
 
-    if (
-      response.type === "pass" &&
-      this.state.pendingAction.status === "counter_phase"
-    ) {
-      this.state.pendingAction.status = "blocked";
-      this.callbacks.broadcast({
-        type: "action_resolved",
-        action: this.state.pendingAction,
-        gameState: this.state,
-      });
-      this.endTurn();
-      return;
-    }
+    // Handle Pass or Timeout
+    if (response.type === "pass" || response.playerId === "system") {
+      const passes = this.state.pendingAction.responses.filter(
+        (r) => r.type === "pass" || r.playerId === "system",
+      );
 
-    this.resolveCurrentAction();
+      // Check if everyone passed or if system forced resolution
+      if (
+        passes.length >= otherPlayersCount ||
+        response.playerId === "system"
+      ) {
+        if (this.state.pendingAction.status === "counter_phase") {
+          // Blocked by everyone passing on the counter
+          this.state.pendingAction.status = "blocked";
+          this.callbacks.broadcast({
+            type: "action_resolved",
+            action: this.state.pendingAction,
+            gameState: this.state,
+          });
+
+          // Stay on current player's turn as per user requirements
+          this.state.pendingAction = null;
+          this.state.actionTimer = null;
+          this.clearTimer();
+
+          this.callbacks.broadcast({
+            type: "state_update",
+            gameState: this.state,
+          });
+        } else {
+          // Success! Everyone passed on initial action
+          this.resolveCurrentAction();
+        }
+      } else {
+        // Just Update state to show who has passed
+        this.callbacks.broadcast({
+          type: "state_update",
+          gameState: this.state,
+        });
+      }
+    }
   }
 
   private checkCounter(responder: Player, action: GameAction): boolean {
@@ -150,6 +201,12 @@ export class GameEngine {
         });
       }
       caller.coins += 3;
+
+      // Clear pending action and end turn (one player clicked lying)
+      this.state.pendingAction = null;
+      this.state.actionTimer = null;
+      this.clearTimer();
+      this.endTurn();
     } else {
       if (caller.cards.length > 0) {
         const lostCard = caller.cards.shift()!;
@@ -172,9 +229,10 @@ export class GameEngine {
         newCard.isKnown = false;
         bluffer.cards.push(newCard);
       }
-    }
 
-    this.resolveCurrentAction();
+      // Action proceeds to resolution
+      this.resolveCurrentAction();
+    }
   }
 
   private resolveCounterBluff(action: GameAction, callerId: string): void {
@@ -234,7 +292,16 @@ export class GameEngine {
         action: action,
         gameState: this.state,
       });
-      this.endTurn();
+
+      // Stay on current player's turn as per user requirements
+      this.state.pendingAction = null;
+      this.state.actionTimer = null;
+      this.clearTimer();
+
+      this.callbacks.broadcast({
+        type: "state_update",
+        gameState: this.state,
+      });
     }
   }
 
@@ -326,7 +393,10 @@ export class GameEngine {
     }
   }
 
-  static createInitialState(players: Player[]): GameState {
+  static createInitialState(
+    players: Player[],
+    settings: GameSettings = { timerDuration: 10 },
+  ): GameState {
     const orderedPlayers = [...players].sort((a, b) => a.order - b.order);
 
     let cardsPerPlayer = 3;
@@ -359,6 +429,7 @@ export class GameEngine {
       actionTimer: null,
       winner: null,
       lastAction: null,
+      settings,
     };
   }
 }
