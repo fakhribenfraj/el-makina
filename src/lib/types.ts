@@ -1,129 +1,111 @@
-// ─── Card Roles ──────────────────────────────────────────────────────
-export type Role =
-  | "Policeman"
-  | "Politician"
-  | "Businesswoman"
-  | "Fisc"
-  | "Terrorist"
-  | "Colonel"
-  | "Thief";
+export type CharacterType =
+  | "policeman"
+  | "politician"
+  | "businessman"
+  | "fisc"
+  | "terrorist"
+  | "colonel"
+  | "thief";
 
-export const ALL_ROLES: Role[] = [
-  "Policeman",
-  "Politician",
-  "Businesswoman",
-  "Fisc",
-  "Terrorist",
-  "Colonel",
-  "Thief",
-];
+export type ActionType =
+  | "take_1_coin"
+  | "take_2_coins"
+  | "take_4_coins"
+  | "steal_2_coins"
+  | "take_1_coin_fisc"
+  | "kill_terrorist"
+  | "kill_7_coins"
+  | "inspect_policeman"
+  | "guess_colonel"
+  | "exchange_politician"
+  | "bluff";
 
-export const ROLE_EMOJI: Record<Role, string> = {
-  Policeman: "🛡️",
-  Politician: "🏛️",
-  Businesswoman: "💼",
-  Fisc: "📋",
-  Terrorist: "💣",
-  Colonel: "⭐",
-  Thief: "🗝️",
-};
+export type ResponseType = "pass" | "counter" | "call_bluff";
 
-export const ROLE_COLOR: Record<Role, string> = {
-  Policeman: "#3b82f6", // blue
-  Politician: "#8b5cf6", // purple
-  Businesswoman: "#f59e0b", // amber
-  Fisc: "#10b981", // emerald
-  Terrorist: "#ef4444", // red
-  Colonel: "#f97316", // orange
-  Thief: "#6366f1", // indigo
-};
+export type ActionStatus = "pending" | "counter_phase" | "resolved" | "blocked";
 
-export const ROLE_DESCRIPTION: Record<Role, string> = {
-  Policeman:
-    "Inspect another player's card. Can swap it for a new one from the deck. Blocks other Policemen.",
-  Politician: "Change your hand with new cards from the deck.",
-  Businesswoman: "Take 4 coins.",
-  Fisc: "Tax players: take 1 coin from anyone with 7+ coins. Stops others from taking 2 coins.",
-  Terrorist: "Kill a player (cost: 3 coins).",
-  Colonel:
-    "Spend 4 coins to guess a card; if correct, they lose it; if wrong, they gain 4 coins. Blocks Terrorist.",
-  Thief: "Steal 2 coins from another player. Blocks other Thieves.",
-};
+export type RoomStatus = "idle" | "waiting" | "playing" | "finished";
 
-// ─── Card ────────────────────────────────────────────────────────────
 export interface Card {
   id: string;
-  role: Role;
+  character: CharacterType;
+  isRevealed: boolean;
+  isKnown: boolean;
 }
 
-// ─── Player ──────────────────────────────────────────────────────────
 export interface Player {
-  id: string; // peerId
+  id: string;
   name: string;
-  cards: Card[];
   coins: number;
+  cards: Card[];
   isAlive: boolean;
-  isProtected: boolean; // Policeman protection toggle
+  isHost: boolean;
+  order: number;
 }
 
-// ─── Game State ──────────────────────────────────────────────────────
-export type GamePhase = "lobby" | "playing" | "finished";
+export interface GameAction {
+  id: string;
+  playerId: string;
+  type: ActionType;
+  targetId?: string;
+  claimedCharacter?: CharacterType;
+  timestamp: number;
+  status: ActionStatus;
+  responses: ActionResponse[];
+}
+
+export interface ActionResponse {
+  playerId: string;
+  type: ResponseType;
+  characterUsed?: CharacterType;
+  timestamp: number;
+}
 
 export interface GameState {
-  phase: GamePhase;
   players: Player[];
   deck: Card[];
-  discardPile: Card[];
-  logs: LogEntry[];
   currentTurnIndex: number;
+  currentPlayerId: string | null;
+  pendingAction: GameAction | null;
+  actionTimer: number | null;
+  winner: Player | null;
+  lastAction: GameAction | null;
+}
+
+export interface GameRoom {
+  code: string;
   hostId: string;
+  players: Player[];
+  status: RoomStatus;
+  createdAt: number;
 }
 
-export interface LogEntry {
-  id: string;
-  timestamp: number;
-  message: string;
-  type: "action" | "system" | "inspect";
-}
+export type GameEvent =
+  | { type: "player_joined"; player: Player }
+  | { type: "player_left"; playerId: string }
+  | { type: "players_update"; players: Player[] }
+  | { type: "game_started"; gameState: GameState }
+  | { type: "turn_changed"; playerId: string; turnIndex: number }
+  | { type: "action_proposed"; action: GameAction }
+  | { type: "action_responded"; response: ActionResponse }
+  | { type: "action_resolved"; action: GameAction; gameState: GameState }
+  | { type: "state_update"; gameState: GameState }
+  | { type: "game_over"; winner: Player }
+  | { type: "join_request"; playerName: string; playerId: string }
+  | {
+      type: "join_accepted";
+      players: Player[];
+      isHost: boolean;
+      gameState?: GameState;
+    }
+  | { type: "join_rejected"; reason: string }
+  | { type: "action_rejected"; reason: string }
+  | { type: "timer_tick"; timeLeft: number }
+  | { type: "room_closed" };
 
-// ─── Peer Messages ───────────────────────────────────────────────────
-export type PeerMessageType =
-  | "STATE_UPDATE"
-  | "JOIN_REQUEST"
-  | "JOIN_ACCEPTED"
-  | "INSPECT_RESULT"
-  | "ACTION_REQUEST"
-  | "PLAYER_NAME";
-
-export interface PeerMessage {
-  type: PeerMessageType;
-  payload: unknown;
-}
-
-export interface JoinRequestPayload {
-  peerId: string;
+export interface CharacterDefinition {
   name: string;
+  icon: string;
+  description: string;
+  color: string;
 }
-
-export interface InspectResultPayload {
-  targetId: string;
-  targetName: string;
-  card: Card;
-}
-
-export interface ActionRequestPayload {
-  action: GameAction;
-  playerId: string;
-  targetId?: string;
-  data?: unknown;
-}
-
-export type GameAction =
-  | "ADD_COIN"
-  | "REMOVE_COIN"
-  | "DRAW_CARD"
-  | "DISCARD_CARD"
-  | "INSPECT"
-  | "FORCE_SWAP"
-  | "KEEP_CARD"
-  | "TOGGLE_PROTECTION";

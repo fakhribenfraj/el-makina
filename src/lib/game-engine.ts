@@ -1,279 +1,290 @@
+import {
+  GameState,
+  GameAction,
+  ActionResponse,
+  Player,
+  Card,
+  CharacterType,
+  GameEvent,
+} from "./types";
+import {
+  resolveAction,
+  checkWinner,
+  getNextAlivePlayer,
+  createDeck,
+  hidePrivateData,
+} from "./abilities";
+import { shuffle } from "./utils";
+import { CHARACTER_LIST } from "./characters";
 import { v4 as uuidv4 } from "uuid";
-import { Card, Role, ALL_ROLES, GameState, Player, LogEntry } from "./types";
 
-// ─── Deck Creation ───────────────────────────────────────────────────
-export function createDeck(): Card[] {
-  const cards: Card[] = [];
-  for (const role of ALL_ROLES) {
-    for (let i = 0; i < 3; i++) {
-      cards.push({ id: uuidv4(), role });
+export interface HostCallbacks {
+  broadcast: (data: GameEvent) => void;
+  sendTo: (playerId: string, data: GameEvent) => void;
+}
+
+export class GameEngine {
+  private state: GameState;
+  private callbacks: HostCallbacks;
+  private timerInterval: NodeJS.Timeout | null = null;
+
+  constructor(initialState: GameState, callbacks: HostCallbacks) {
+    this.state = initialState;
+    this.callbacks = callbacks;
+  }
+
+  getState(): GameState {
+    return this.state;
+  }
+
+  setState(state: GameState): void {
+    this.state = state;
+  }
+
+  processAction(action: GameAction): void {
+    const player = this.state.players.find((p) => p.id === action.playerId);
+    if (!player) return;
+
+    action.status = "pending";
+    this.state.pendingAction = action;
+    this.state.actionTimer = 10;
+
+    this.callbacks.broadcast({
+      type: "action_proposed",
+      action,
+    });
+
+    this.startResponseTimer();
+  }
+
+  processResponse(response: ActionResponse): void {
+    if (!this.state.pendingAction) return;
+
+    this.state.pendingAction.responses.push(response);
+
+    if (response.type === "counter") {
+      const responder = this.state.players.find(
+        (p) => p.id === response.playerId,
+      );
+      if (responder) {
+        const canCounter = this.checkCounter(
+          responder,
+          this.state.pendingAction,
+        );
+        if (canCounter) {
+          this.state.pendingAction.status = "blocked";
+          this.callbacks.broadcast({
+            type: "action_resolved",
+            action: this.state.pendingAction,
+            gameState: this.state,
+          });
+          this.endTurn();
+          return;
+        }
+      }
+    }
+
+    if (response.type === "call_bluff") {
+      this.resolveBluff(this.state.pendingAction, response.playerId);
+      return;
+    }
+
+    this.resolveCurrentAction();
+  }
+
+  private checkCounter(responder: Player, action: GameAction): boolean {
+    if (!responder.cards || responder.cards.length === 0) return false;
+
+    const counterMappings: Record<CharacterType, string[]> = {
+      policeman: ["inspect_policeman"],
+      politician: [],
+      businessman: [],
+      fisc: ["take_2_coins"],
+      terrorist: [],
+      colonel: ["kill_terrorist"],
+      thief: ["steal_2_coins"],
+    };
+
+    for (const card of responder.cards) {
+      const canCounterActions = counterMappings[card.character];
+      if (canCounterActions && canCounterActions.includes(action.type)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private resolveBluff(action: GameAction, callerId: string): void {
+    const bluffer = this.state.players.find((p) => p.id === action.playerId);
+    const caller = this.state.players.find((p) => p.id === callerId);
+
+    if (!bluffer || !caller) {
+      this.resolveCurrentAction();
+      return;
+    }
+
+    const isActuallyBluff = !bluffer.cards.some(
+      (c) => c.character === action.claimedCharacter,
+    );
+
+    if (isActuallyBluff) {
+      if (bluffer.cards.length > 0) {
+        const lostCard = bluffer.cards.shift()!;
+        this.state.deck.push({
+          ...lostCard,
+          isRevealed: false,
+          isKnown: false,
+        });
+      }
+      caller.coins += 3;
+    } else {
+      if (caller.cards.length > 0) {
+        const lostCard = caller.cards.shift()!;
+        this.state.deck.push({
+          ...lostCard,
+          isRevealed: false,
+          isKnown: false,
+        });
+      }
+      bluffer.coins += 2;
+      if (bluffer.cards.length > 0) {
+        const changedCard = bluffer.cards.shift()!;
+        changedCard.isRevealed = true;
+        changedCard.isKnown = true;
+        this.state.deck.push(changedCard);
+      }
+      if (this.state.deck.length > 0) {
+        const newCard = this.state.deck.shift()!;
+        newCard.isRevealed = false;
+        newCard.isKnown = false;
+        bluffer.cards.push(newCard);
+      }
+    }
+
+    this.resolveCurrentAction();
+  }
+
+  private resolveCurrentAction(): void {
+    if (!this.state.pendingAction) return;
+
+    const action = this.state.pendingAction;
+    action.status = "resolved";
+    this.state.lastAction = action;
+
+    this.state = resolveAction(action, this.state);
+
+    const winner = checkWinner(this.state);
+    if (winner) {
+      this.callbacks.broadcast({
+        type: "game_over",
+        winner,
+      });
+      this.state.winner = winner;
+      return;
+    }
+
+    this.callbacks.broadcast({
+      type: "action_resolved",
+      action,
+      gameState: this.state,
+    });
+
+    this.endTurn();
+  }
+
+  private endTurn(): void {
+    this.clearTimer();
+
+    const nextPlayerId = getNextAlivePlayer(this.state);
+    if (!nextPlayerId) return;
+
+    const nextIndex = this.state.players.findIndex(
+      (p) => p.id === nextPlayerId,
+    );
+    this.state.currentTurnIndex = nextIndex;
+    this.state.currentPlayerId = nextPlayerId;
+    this.state.pendingAction = null;
+    this.state.actionTimer = null;
+
+    this.callbacks.broadcast({
+      type: "turn_changed",
+      playerId: nextPlayerId,
+      turnIndex: nextIndex,
+    });
+
+    this.callbacks.broadcast({
+      type: "state_update",
+      gameState: this.state,
+    });
+  }
+
+  private startResponseTimer(): void {
+    this.clearTimer();
+
+    this.timerInterval = setInterval(() => {
+      if (this.state.actionTimer === null) {
+        this.clearTimer();
+        return;
+      }
+
+      this.state.actionTimer -= 1;
+
+      this.callbacks.broadcast({
+        type: "timer_tick",
+        timeLeft: this.state.actionTimer,
+      });
+
+      if (this.state.actionTimer <= 0) {
+        this.clearTimer();
+        this.processResponse({
+          playerId: "system",
+          type: "pass",
+          timestamp: Date.now(),
+        });
+      }
+    }, 1000);
+  }
+
+  private clearTimer(): void {
+    if (this.timerInterval) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = null;
     }
   }
-  return shuffleDeck(cards);
-}
 
-export function shuffleDeck(deck: Card[]): Card[] {
-  const shuffled = [...deck];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  static createInitialState(players: Player[]): GameState {
+    const orderedPlayers = [...players].sort((a, b) => a.order - b.order);
+
+    let cardsPerPlayer = 3;
+    if (players.length > 4) {
+      cardsPerPlayer = 2;
+    }
+
+    let deck = createDeck(CHARACTER_LIST);
+    deck = shuffle(deck);
+
+    for (const player of orderedPlayers) {
+      player.coins = 2;
+      player.cards = [];
+      player.isAlive = true;
+      for (let i = 0; i < cardsPerPlayer && deck.length > 0; i++) {
+        const card = deck.shift()!;
+        player.cards.push(card);
+      }
+    }
+
+    const firstAliveIndex = orderedPlayers.findIndex((p) => p.isAlive);
+
+    return {
+      players: orderedPlayers,
+      deck,
+      currentTurnIndex: firstAliveIndex >= 0 ? firstAliveIndex : 0,
+      currentPlayerId:
+        orderedPlayers[firstAliveIndex >= 0 ? firstAliveIndex : 0]?.id || null,
+      pendingAction: null,
+      actionTimer: null,
+      winner: null,
+      lastAction: null,
+    };
   }
-  return shuffled;
-}
-
-// ─── Draw Cards ──────────────────────────────────────────────────────
-export function drawCards(
-  deck: Card[],
-  count: number,
-): { drawn: Card[]; remaining: Card[] } {
-  const drawn = deck.slice(0, count);
-  const remaining = deck.slice(count);
-  return { drawn, remaining };
-}
-
-// ─── Create Log Entry ────────────────────────────────────────────────
-export function createLog(
-  message: string,
-  type: LogEntry["type"] = "action",
-): LogEntry {
-  return {
-    id: uuidv4(),
-    timestamp: Date.now(),
-    message,
-    type,
-  };
-}
-
-// ─── Initial Game State ──────────────────────────────────────────────
-export function createInitialGameState(hostId: string): GameState {
-  return {
-    phase: "lobby",
-    players: [],
-    deck: createDeck(),
-    discardPile: [],
-    logs: [createLog("Game created. Waiting for players...", "system")],
-    currentTurnIndex: 0,
-    hostId,
-  };
-}
-
-// ─── Add Player ──────────────────────────────────────────────────────
-export function addPlayer(
-  state: GameState,
-  peerId: string,
-  name: string,
-): GameState {
-  if (state.players.find((p) => p.id === peerId)) return state;
-
-  const newPlayer: Player = {
-    id: peerId,
-    name,
-    cards: [],
-    coins: 2,
-    isAlive: true,
-    isProtected: false,
-  };
-
-  return {
-    ...state,
-    players: [...state.players, newPlayer],
-    logs: [...state.logs, createLog(`${name} joined the game`, "system")],
-  };
-}
-
-// ─── Start Game ──────────────────────────────────────────────────────
-export function startGame(state: GameState): GameState {
-  let deck = [...state.deck];
-  const players = state.players.map((player) => {
-    const { drawn, remaining } = drawCards(deck, 2);
-    deck = remaining;
-    return { ...player, cards: drawn };
-  });
-
-  return {
-    ...state,
-    phase: "playing",
-    deck,
-    players,
-    logs: [
-      ...state.logs,
-      createLog("Game started! Each player received 2 cards.", "system"),
-    ],
-  };
-}
-
-// ─── Game Actions ────────────────────────────────────────────────────
-export function addCoin(
-  state: GameState,
-  playerId: string,
-  amount: number = 1,
-): GameState {
-  return updatePlayer(state, playerId, (p) => ({
-    ...p,
-    coins: Math.min(10, p.coins + amount),
-  }));
-}
-
-export function removeCoin(
-  state: GameState,
-  playerId: string,
-  amount: number = 1,
-): GameState {
-  return updatePlayer(state, playerId, (p) => ({
-    ...p,
-    coins: Math.max(0, p.coins - amount),
-  }));
-}
-
-export function drawCard(state: GameState, playerId: string): GameState {
-  if (state.deck.length === 0) return state;
-  const { drawn, remaining } = drawCards(state.deck, 1);
-  const newState = {
-    ...state,
-    deck: remaining,
-  };
-  const player = state.players.find((p) => p.id === playerId);
-  return {
-    ...updatePlayer(newState, playerId, (p) => ({
-      ...p,
-      cards: [...p.cards, ...drawn],
-    })),
-    logs: [
-      ...state.logs,
-      createLog(`${player?.name || "Unknown"} drew a card`),
-    ],
-  };
-}
-
-export function discardCard(
-  state: GameState,
-  playerId: string,
-  cardId: string,
-): GameState {
-  const player = state.players.find((p) => p.id === playerId);
-  if (!player) return state;
-
-  const card = player.cards.find((c) => c.id === cardId);
-  if (!card) return state;
-
-  const newState = updatePlayer(state, playerId, (p) => ({
-    ...p,
-    cards: p.cards.filter((c) => c.id !== cardId),
-  }));
-
-  // Insert the card at a random position in the deck
-  const newDeck = [...state.deck];
-  const randomIndex = Math.floor(Math.random() * (newDeck.length + 1));
-  newDeck.splice(randomIndex, 0, card);
-
-  return {
-    ...newState,
-    deck: newDeck,
-    logs: [...state.logs, createLog(`${player.name} discarded a card`)],
-  };
-}
-
-// ─── Policeman Actions ───────────────────────────────────────────────
-export function getInspectResult(
-  state: GameState,
-  targetId: string,
-): Card | null {
-  const target = state.players.find((p) => p.id === targetId);
-  if (!target || target.cards.length === 0) return null;
-  if (target.isProtected) return null;
-  // Return first card for inspection
-  return target.cards[0];
-}
-
-export function forceSwap(
-  state: GameState,
-  inspectorId: string,
-  targetId: string,
-  cardId: string,
-): GameState {
-  const target = state.players.find((p) => p.id === targetId);
-  const inspector = state.players.find((p) => p.id === inspectorId);
-  if (!target || !inspector) return state;
-
-  const card = target.cards.find((c) => c.id === cardId);
-  if (!card) return state;
-  if (state.deck.length === 0) return state;
-
-  const { drawn, remaining } = drawCards(state.deck, 1);
-
-  const newDeck = [...remaining];
-  const randomIndex = Math.floor(Math.random() * (newDeck.length + 1));
-  newDeck.splice(randomIndex, 0, card);
-
-  let newState: GameState = {
-    ...state,
-    deck: newDeck,
-  };
-
-  newState = updatePlayer(newState, targetId, (p) => ({
-    ...p,
-    cards: [...p.cards.filter((c) => c.id !== cardId), ...drawn],
-  }));
-
-  return {
-    ...newState,
-    logs: [
-      ...state.logs,
-      createLog(
-        `${inspector.name} inspected ${target.name} and forced a card swap`,
-        "inspect",
-      ),
-    ],
-  };
-}
-
-export function toggleProtection(
-  state: GameState,
-  playerId: string,
-): GameState {
-  const player = state.players.find((p) => p.id === playerId);
-  return {
-    ...updatePlayer(state, playerId, (p) => ({
-      ...p,
-      isProtected: !p.isProtected,
-    })),
-    logs: [
-      ...state.logs,
-      createLog(
-        `${player?.name || "Unknown"} ${
-          player?.isProtected ? "disabled" : "enabled"
-        } Policeman protection`,
-        "action",
-      ),
-    ],
-  };
-}
-
-// ─── Utility ─────────────────────────────────────────────────────────
-function updatePlayer(
-  state: GameState,
-  playerId: string,
-  updater: (player: Player) => Player,
-): GameState {
-  return {
-    ...state,
-    players: state.players.map((p) => (p.id === playerId ? updater(p) : p)),
-  };
-}
-
-export function removePlayer(state: GameState, playerId: string): GameState {
-  const player = state.players.find((p) => p.id === playerId);
-  return {
-    ...state,
-    players: state.players.filter((p) => p.id !== playerId),
-    logs: [
-      ...state.logs,
-      createLog(`${player?.name || "Unknown"} left the game`, "system"),
-    ],
-  };
-}
-
-// ─── Role Helpers ────────────────────────────────────────────────────
-export function playerHasRole(player: Player, role: Role): boolean {
-  return player.cards.some((c) => c.role === role);
 }
