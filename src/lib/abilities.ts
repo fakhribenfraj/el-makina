@@ -195,13 +195,16 @@ export function getNextAlivePlayer(gameState: GameState): string | null {
 
 export function createDeck(characterList: CharacterType[]): Card[] {
   const deck: Card[] = [];
+  // Create 3 copies of each character as specified in SPEC.md
   for (const character of characterList) {
-    deck.push({
-      id: uuidv4(),
-      character,
-      isRevealed: false,
-      isKnown: false,
-    });
+    for (let i = 0; i < 3; i++) {
+      deck.push({
+        id: uuidv4(),
+        character,
+        isRevealed: false,
+        isKnown: false,
+      });
+    }
   }
   return deck;
 }

@@ -27,14 +27,14 @@ export const ACTION_TO_CHARACTER: Record<
   kill_7_coins: undefined,
 };
 
-export const COUNTER_ABILITIES: Record<CharacterType, CharacterType[]> = {
-  policeman: ["policeman"],
+export const COUNTER_ABILITIES: Record<CharacterType, ActionType[]> = {
+  policeman: ["inspect_policeman"],
   politician: [],
   businessman: [],
-  fisc: [],
-  terrorist: ["colonel"],
-  colonel: ["terrorist"],
-  thief: ["thief"],
+  fisc: ["take_2_coins"], // Fisc can counter 2-coin takes
+  terrorist: [],
+  colonel: ["kill_terrorist"],
+  thief: ["steal_2_coins"],
 };
 
 export const BASIC_ACTIONS: ActionType[] = [
