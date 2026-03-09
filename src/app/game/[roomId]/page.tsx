@@ -251,10 +251,11 @@ export default function GamePage() {
     setSelectedTargetId(null);
   };
 
-  const handleCounter = () => {
+  const handleCounter = (character?: CharacterType) => {
     const response: ActionResponse = {
       playerId: myPlayerId || "",
       type: "counter" as const,
+      characterUsed: character,
       timestamp: Date.now(),
     };
 
@@ -415,26 +416,41 @@ export default function GamePage() {
       />
 
       {gameState?.pendingAction &&
-        gameState.pendingAction.playerId !== myPlayerId && (
+        ((gameState.pendingAction.status === "pending" &&
+          gameState.pendingAction.playerId !== myPlayerId) ||
+          (gameState.pendingAction.status === "counter_phase" &&
+            gameState.pendingAction.counteredBy !== myPlayerId)) && (
           <ActionNotification
             isOpen={true}
             action={gameState.pendingAction}
             currentPlayer={
               gameState.players.find(
-                (p) => p.id === gameState.pendingAction?.playerId,
+                (p) =>
+                  p.id ===
+                  (gameState.pendingAction?.status === "counter_phase"
+                    ? gameState.pendingAction.counteredBy
+                    : gameState.pendingAction?.playerId),
               ) || null
             }
+            gameState={gameState}
             timeLeft={timeLeft ?? gameState.actionTimer ?? 0}
-            canCounter={false} // Counters simplified for now as per "2 buttons" request
-            canCallBluff={!!gameState.pendingAction.claimedCharacter}
-            onCounter={handleCounter}
+            canCounter={false}
+            canCallBluff={
+              gameState.pendingAction.status === "pending"
+                ? !!gameState.pendingAction.claimedCharacter
+                : true
+            }
+            onCounter={() => handleCounter("fisc")}
             onCallBluff={handleCallBluff}
             onPass={handlePass}
           />
         )}
 
       {gameState?.pendingAction &&
-        gameState.pendingAction.playerId === myPlayerId && (
+        ((gameState.pendingAction.status === "pending" &&
+          gameState.pendingAction.playerId === myPlayerId) ||
+          (gameState.pendingAction.status === "counter_phase" &&
+            gameState.pendingAction.counteredBy === myPlayerId)) && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-6">
             <div className="bg-[#16213e] border-2 border-[#e94560] rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl">
               <div className="w-16 h-16 border-4 border-[#e94560] border-t-transparent rounded-full animate-spin mx-auto mb-6" />
@@ -442,7 +458,9 @@ export default function GamePage() {
                 WAITING FOR PLAYERS
               </h3>
               <p className="text-[#a0a0a0]">
-                Everyone is deciding if you are lying or not...
+                {gameState.pendingAction.status === "counter_phase"
+                  ? "Someone might challenge your block..."
+                  : "Everyone is deciding if you are lying or not..."}
               </p>
               <div className="mt-6 flex justify-center">
                 <Timer timeLeft={timeLeft ?? gameState.actionTimer ?? 0} />

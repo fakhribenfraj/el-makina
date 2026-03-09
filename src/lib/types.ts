@@ -52,6 +52,8 @@ export interface GameAction {
   timestamp: number;
   status: ActionStatus;
   responses: ActionResponse[];
+  counteredBy?: string;
+  counterCharacter?: CharacterType;
 }
 
 export interface ActionResponse {

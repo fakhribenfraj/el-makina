@@ -62,30 +62,43 @@ export class GameEngine {
 
     this.state.pendingAction.responses.push(response);
 
-    if (response.type === "counter") {
-      const responder = this.state.players.find(
-        (p) => p.id === response.playerId,
-      );
-      if (responder) {
-        const canCounter = this.checkCounter(
-          responder,
-          this.state.pendingAction,
-        );
-        if (canCounter) {
-          this.state.pendingAction.status = "blocked";
-          this.callbacks.broadcast({
-            type: "action_resolved",
-            action: this.state.pendingAction,
-            gameState: this.state,
-          });
-          this.endTurn();
-          return;
-        }
-      }
+    if (
+      response.type === "counter" &&
+      this.state.pendingAction.status === "pending"
+    ) {
+      this.state.pendingAction.status = "counter_phase";
+      this.state.pendingAction.counteredBy = response.playerId;
+      this.state.pendingAction.counterCharacter = response.characterUsed;
+      this.state.actionTimer = 10;
+      this.startResponseTimer();
+
+      this.callbacks.broadcast({
+        type: "state_update",
+        gameState: this.state,
+      });
+      return;
     }
 
     if (response.type === "call_bluff") {
-      this.resolveBluff(this.state.pendingAction, response.playerId);
+      if (this.state.pendingAction.status === "counter_phase") {
+        this.resolveCounterBluff(this.state.pendingAction, response.playerId);
+      } else {
+        this.resolveBluff(this.state.pendingAction, response.playerId);
+      }
+      return;
+    }
+
+    if (
+      response.type === "pass" &&
+      this.state.pendingAction.status === "counter_phase"
+    ) {
+      this.state.pendingAction.status = "blocked";
+      this.callbacks.broadcast({
+        type: "action_resolved",
+        action: this.state.pendingAction,
+        gameState: this.state,
+      });
+      this.endTurn();
       return;
     }
 
@@ -162,6 +175,67 @@ export class GameEngine {
     }
 
     this.resolveCurrentAction();
+  }
+
+  private resolveCounterBluff(action: GameAction, callerId: string): void {
+    const blockerId = action.counteredBy;
+    const blocker = this.state.players.find((p) => p.id === blockerId);
+    const caller = this.state.players.find((p) => p.id === callerId);
+
+    if (!blocker || !caller || !action.counterCharacter) {
+      this.resolveCurrentAction();
+      return;
+    }
+
+    const isActuallyBluff = !blocker.cards.some(
+      (c) => c.character === action.counterCharacter,
+    );
+
+    if (isActuallyBluff) {
+      if (blocker.cards.length > 0) {
+        const lostCard = blocker.cards.shift()!;
+        this.state.deck.push({
+          ...lostCard,
+          isRevealed: false,
+          isKnown: false,
+        });
+      }
+      caller.coins += 3;
+      this.resolveCurrentAction();
+    } else {
+      if (caller.cards.length > 0) {
+        const lostCard = caller.cards.shift()!;
+        this.state.deck.push({
+          ...lostCard,
+          isRevealed: false,
+          isKnown: false,
+        });
+      }
+      blocker.coins += 2;
+
+      // Changed card for blocker
+      if (blocker.cards.length > 0) {
+        const changedCard = blocker.cards.shift()!;
+        this.state.deck.push({
+          ...changedCard,
+          isRevealed: false,
+          isKnown: false,
+        });
+      }
+      if (this.state.deck.length > 0) {
+        this.state.deck = shuffle(this.state.deck);
+        const newCard = this.state.deck.shift()!;
+        blocker.cards.push(newCard);
+      }
+
+      action.status = "blocked";
+      this.callbacks.broadcast({
+        type: "action_resolved",
+        action: action,
+        gameState: this.state,
+      });
+      this.endTurn();
+    }
   }
 
   private resolveCurrentAction(): void {
