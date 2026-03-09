@@ -251,11 +251,6 @@ export default function GamePage() {
     setSelectedTargetId(null);
   };
 
-  const handleBluffSelect = () => {
-    setShowTargetSelector(true);
-    setPendingAction({ type: "bluff" });
-  };
-
   const handleCounter = () => {
     const response: ActionResponse = {
       playerId: myPlayerId || "",
@@ -371,7 +366,6 @@ export default function GamePage() {
         <ActionMenu
           player={myPlayer}
           onActionSelect={handleActionSelect}
-          onBluffSelect={handleBluffSelect}
           isMyTurn={isMyTurn}
         />
       )}
@@ -420,30 +414,42 @@ export default function GamePage() {
         }}
       />
 
-      <ActionNotification
-        isOpen={!!gameState?.pendingAction}
-        action={gameState?.pendingAction || null}
-        currentPlayer={
-          gameState?.players.find(
-            (p) => p.id === gameState?.pendingAction?.playerId,
-          ) || null
-        }
-        timeLeft={timeLeft ?? gameState?.actionTimer ?? 0}
-        canCounter={
-          !!myPlayer &&
-          !!gameState?.pendingAction &&
-          gameState.pendingAction.playerId !== myPlayerId
-        }
-        canCallBluff={
-          !!myPlayer &&
-          !!gameState?.pendingAction &&
-          gameState.pendingAction.playerId !== myPlayerId &&
-          !!gameState.pendingAction.claimedCharacter
-        }
-        onCounter={handleCounter}
-        onCallBluff={handleCallBluff}
-        onPass={handlePass}
-      />
+      {gameState?.pendingAction &&
+        gameState.pendingAction.playerId !== myPlayerId && (
+          <ActionNotification
+            isOpen={true}
+            action={gameState.pendingAction}
+            currentPlayer={
+              gameState.players.find(
+                (p) => p.id === gameState.pendingAction?.playerId,
+              ) || null
+            }
+            timeLeft={timeLeft ?? gameState.actionTimer ?? 0}
+            canCounter={false} // Counters simplified for now as per "2 buttons" request
+            canCallBluff={!!gameState.pendingAction.claimedCharacter}
+            onCounter={handleCounter}
+            onCallBluff={handleCallBluff}
+            onPass={handlePass}
+          />
+        )}
+
+      {gameState?.pendingAction &&
+        gameState.pendingAction.playerId === myPlayerId && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-6">
+            <div className="bg-[#16213e] border-2 border-[#e94560] rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl">
+              <div className="w-16 h-16 border-4 border-[#e94560] border-t-transparent rounded-full animate-spin mx-auto mb-6" />
+              <h3 className="text-2xl font-bold text-white mb-2 italic">
+                WAITING FOR PLAYERS
+              </h3>
+              <p className="text-[#a0a0a0]">
+                Everyone is deciding if you are lying or not...
+              </p>
+              <div className="mt-6 flex justify-center">
+                <Timer timeLeft={timeLeft ?? gameState.actionTimer ?? 0} />
+              </div>
+            </div>
+          </div>
+        )}
 
       <GameOverModal
         isOpen={showGameOverModal}

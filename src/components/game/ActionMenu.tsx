@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Player, ActionType } from "@/lib/types";
 import { Button } from "../ui/Button";
-import { getActionLabel } from "@/lib/actions";
+import { getActionLabel, getCharacterForAction } from "@/lib/actions";
 
 interface ActionMenuProps {
   player: Player;
@@ -10,7 +10,7 @@ interface ActionMenuProps {
     targetId?: string,
     claimedCharacter?: string,
   ) => void;
-  onBluffSelect: () => void;
+  onBluffSelect?: () => void;
   disabled?: boolean;
   isMyTurn?: boolean;
 }
@@ -18,7 +18,6 @@ interface ActionMenuProps {
 export function ActionMenu({
   player,
   onActionSelect,
-  onBluffSelect,
   disabled,
   isMyTurn,
 }: ActionMenuProps) {
@@ -31,36 +30,35 @@ export function ActionMenu({
     }
   }, [isMyTurn]);
 
-  const characterActions: ActionType[] = player.cards
-    .map((card) => {
-      const mapping: Record<string, ActionType> = {
-        policeman: "inspect_policeman",
-        politician: "exchange_politician",
-        businessman: "take_4_coins",
-        fisc: "take_1_coin_fisc",
-        terrorist: "kill_terrorist",
-        colonel: "guess_colonel",
-        thief: "steal_2_coins",
-      };
-      return mapping[card.character];
-    })
-    .filter(Boolean);
+  const allSpecialActions: ActionType[] = [
+    "inspect_policeman",
+    "exchange_politician",
+    "take_4_coins",
+    "take_1_coin_fisc",
+    "kill_terrorist",
+    "guess_colonel",
+    "steal_2_coins",
+  ];
 
   const canAfford = (cost: number) => player.coins >= cost;
 
-  const specialActionsAvailable = characterActions.filter((action) => {
+  const specialActionsAvailable = allSpecialActions.map((action) => {
+    let cost = 0;
     switch (action) {
-      case "take_4_coins":
-        return canAfford(0);
       case "kill_terrorist":
-        return canAfford(3);
+        cost = 3;
+        break;
       case "guess_colonel":
-        return canAfford(4);
-      case "kill_7_coins":
-        return canAfford(7);
+        cost = 4;
+        break;
       default:
-        return canAfford(0);
+        cost = 0;
     }
+
+    return {
+      type: action,
+      enabled: canAfford(cost),
+    };
   });
 
   return (
@@ -168,18 +166,22 @@ export function ActionMenu({
               Character Special Actions
             </p>
             <div className="space-y-3">
-              {specialActionsAvailable.map((action) => (
+              {specialActionsAvailable.map((actionObj) => (
                 <Button
-                  key={action}
+                  key={actionObj.type}
                   variant="success"
                   className="w-full justify-center py-4 text-lg shadow-lg font-bold"
                   onClick={() => {
-                    onActionSelect(action);
+                    onActionSelect(
+                      actionObj.type,
+                      undefined,
+                      getCharacterForAction(actionObj.type),
+                    );
                     setIsOpen(false);
                   }}
-                  disabled={disabled || !isMyTurn}
+                  disabled={disabled || !isMyTurn || !actionObj.enabled}
                 >
-                  {getActionLabel(action)}
+                  {getActionLabel(actionObj.type)}
                 </Button>
               ))}
             </div>
@@ -200,18 +202,6 @@ export function ActionMenu({
               Kill Player (7 coins)
             </Button>
           )}
-
-          <Button
-            variant="ghost"
-            className="w-full justify-center h-12 bg-[#0f346050] text-[#a0a0a0] hover:text-white"
-            onClick={() => {
-              onBluffSelect();
-              setIsOpen(false);
-            }}
-            disabled={disabled || !isMyTurn}
-          >
-            Bluff / Challenge
-          </Button>
         </div>
 
         {/* Extra padding for safe areas on mobile */}
