@@ -177,14 +177,7 @@ export class GameEngine {
             gameState: this.state,
           });
 
-          this.state.pendingAction = null;
-          this.state.actionTimer = null;
-          this.clearTimer();
-
-          this.callbacks.broadcast({
-            type: "state_update",
-            gameState: this.state,
-          });
+          this.endTurn();
         } else if (
           this.state.pendingAction.type === "take_4_coins" &&
           this.state.pendingAction.responses.some(
@@ -284,7 +277,6 @@ export class GameEngine {
           isKnown: false,
         });
       }
-      bluffer.coins += 2;
       if (bluffer.cards.length > 0) {
         const changedCard = bluffer.cards.shift()!;
         changedCard.isRevealed = true;
@@ -298,7 +290,7 @@ export class GameEngine {
         bluffer.cards.push(newCard);
       }
 
-      // Action proceeds to resolution
+      // Action proceeds to resolution (no extra coins for telling truth)
       this.resolveCurrentAction();
     }
   }
@@ -327,6 +319,12 @@ export class GameEngine {
         });
       }
       caller.coins += 3;
+
+      // Reset action status to allow original action to execute
+      action.status = "pending";
+      action.counteredBy = undefined;
+      action.counterCharacter = undefined;
+
       this.resolveCurrentAction();
     } else {
       if (caller.cards.length > 0) {
@@ -361,15 +359,7 @@ export class GameEngine {
         gameState: this.state,
       });
 
-      // Stay on current player's turn as per user requirements
-      this.state.pendingAction = null;
-      this.state.actionTimer = null;
-      this.clearTimer();
-
-      this.callbacks.broadcast({
-        type: "state_update",
-        gameState: this.state,
-      });
+      this.endTurn();
     }
   }
 
