@@ -473,7 +473,13 @@ export default function GamePage() {
                 ? !!gameState.pendingAction.claimedCharacter
                 : true
             }
-            onCounter={() => handleCounter("fisc")}
+            onCounter={() =>
+              handleCounter(
+                gameState.pendingAction.type === "steal_2_coins"
+                  ? "thief"
+                  : "fisc",
+              )
+            }
             onCallBluff={handleCallBluff}
             onPass={handlePass}
             onTakeOneAsFisc={handleTakeOneAsFisc}

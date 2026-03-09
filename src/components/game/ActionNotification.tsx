@@ -113,7 +113,8 @@ export function ActionNotification({
             action.status === "counter_phase" ||
             canCallBluff ||
             action.type === "take_2_coins" ||
-            action.type === "take_4_coins"
+            action.type === "take_4_coins" ||
+            action.type === "steal_2_coins"
               ? "grid-cols-2"
               : "grid-cols-1"
           } gap-4`}
@@ -137,6 +138,16 @@ export function ActionNotification({
             </>
           ) : (
             <>
+              {action.type === "steal_2_coins" && (
+                <Button
+                  variant="primary"
+                  className="w-full py-8 text-xl font-bold uppercase tracking-tight bg-[#0f3460] border-2 border-[#ff9d00] shadow-[0_0_15px_rgba(255,157,0,0.3)]"
+                  onClick={onCounter}
+                >
+                  Block as Thief
+                </Button>
+              )}
+
               {action.type === "take_2_coins" && (
                 <Button
                   variant="primary"
