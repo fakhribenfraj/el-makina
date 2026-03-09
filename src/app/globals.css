@@ -190,3 +190,13 @@ body {
 #qr-reader video {
   border-radius: 12px !important;
 }
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}

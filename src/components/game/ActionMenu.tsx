@@ -1,27 +1,46 @@
-import React from 'react';
-import { Player, ActionType } from '@/lib/types';
-import { Button } from '../ui/Button';
-import { getActionLabel } from '@/lib/actions';
-import { isBasicAction } from '@/lib/actions';
+import React, { useState, useEffect } from "react";
+import { Player, ActionType } from "@/lib/types";
+import { Button } from "../ui/Button";
+import { getActionLabel } from "@/lib/actions";
 
 interface ActionMenuProps {
   player: Player;
-  onActionSelect: (action: ActionType, targetId?: string, claimedCharacter?: string) => void;
+  onActionSelect: (
+    action: ActionType,
+    targetId?: string,
+    claimedCharacter?: string,
+  ) => void;
   onBluffSelect: () => void;
   disabled?: boolean;
+  isMyTurn?: boolean;
 }
 
-export function ActionMenu({ player, onActionSelect, onBluffSelect, disabled }: ActionMenuProps) {
+export function ActionMenu({
+  player,
+  onActionSelect,
+  onBluffSelect,
+  disabled,
+  isMyTurn,
+}: ActionMenuProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Auto-show when it's my turn
+  useEffect(() => {
+    if (isMyTurn) {
+      setIsOpen(true);
+    }
+  }, [isMyTurn]);
+
   const characterActions: ActionType[] = player.cards
-    .map(card => {
+    .map((card) => {
       const mapping: Record<string, ActionType> = {
-        policeman: 'inspect_policeman',
-        politician: 'exchange_politician',
-        businessman: 'take_4_coins',
-        fisc: 'take_1_coin_fisc',
-        terrorist: 'kill_terrorist',
-        colonel: 'guess_colonel',
-        thief: 'steal_2_coins',
+        policeman: "inspect_policeman",
+        politician: "exchange_politician",
+        businessman: "take_4_coins",
+        fisc: "take_1_coin_fisc",
+        terrorist: "kill_terrorist",
+        colonel: "guess_colonel",
+        thief: "steal_2_coins",
       };
       return mapping[card.character];
     })
@@ -29,15 +48,15 @@ export function ActionMenu({ player, onActionSelect, onBluffSelect, disabled }: 
 
   const canAfford = (cost: number) => player.coins >= cost;
 
-  const specialActionsAvailable = characterActions.filter(action => {
+  const specialActionsAvailable = characterActions.filter((action) => {
     switch (action) {
-      case 'take_4_coins':
+      case "take_4_coins":
         return canAfford(0);
-      case 'kill_terrorist':
+      case "kill_terrorist":
         return canAfford(3);
-      case 'guess_colonel':
+      case "guess_colonel":
         return canAfford(4);
-      case 'kill_7_coins':
+      case "kill_7_coins":
         return canAfford(7);
       default:
         return canAfford(0);
@@ -45,73 +64,159 @@ export function ActionMenu({ player, onActionSelect, onBluffSelect, disabled }: 
   });
 
   return (
-    <div className="bg-[#16213e] rounded-xl p-4 space-y-3">
-      <h3 className="text-lg font-bold text-[#eaeaea] text-center mb-4">
-        Your Turn
-      </h3>
+    <>
+      {/* Backdrop */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 transition-opacity duration-300"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
 
-      <div className="space-y-2">
-        <Button
-          variant="secondary"
-          className="w-full justify-start"
-          onClick={() => onActionSelect('take_1_coin')}
-          disabled={disabled}
-        >
-          Take 1 Coin
-        </Button>
-
-        <Button
-          variant="secondary"
-          className="w-full justify-start"
-          onClick={() => onActionSelect('take_2_coins')}
-          disabled={disabled}
-        >
-          Take 2 Coins
-        </Button>
+      {/* Drawer Trigger (Visible when closed) */}
+      <div
+        className={`fixed bottom-0 left-0 right-0 p-4 transition-transform duration-500 z-30 ${isOpen ? "translate-y-full opacity-0" : "translate-y-0 opacity-100"}`}
+      >
+        <div className="flex justify-center">
+          <Button
+            variant={isMyTurn ? "primary" : "secondary"}
+            onClick={() => setIsOpen(true)}
+            size="lg"
+            className={`shadow-[0_-5px_20px_rgba(233,69,96,0.3)] px-12 transition-all duration-300 transform rounded-b-none border-b-0 min-w-[200px] ${isMyTurn ? "animate-pulse scale-105" : "opacity-90"}`}
+          >
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-8 h-1 bg-white/20 rounded-full mb-1" />
+              <span>{isMyTurn ? "🔥 ACTION!" : "SHOW ACTIONS"}</span>
+            </div>
+          </Button>
+        </div>
       </div>
 
-      {specialActionsAvailable.length > 0 && (
-        <>
-          <div className="border-t border-[#0f3460] pt-3">
-            <p className="text-xs text-[#a0a0a0] mb-2">Special Actions</p>
-            <div className="space-y-2">
+      {/* Drawer */}
+      <div
+        className={`fixed bottom-0 left-0 right-0 bg-[#16213e]/95 backdrop-blur-md border-t-4 border-[#e94560] rounded-t-[2.5rem] p-8 space-y-6 shadow-[0_-15px_40px_rgba(0,0,0,0.6)] z-50 transition-all duration-500 transform ${
+          isOpen ? "translate-y-0" : "translate-y-full"
+        }`}
+      >
+        {/* Handle for dragging visual */}
+        <div
+          className="absolute top-3 left-1/2 -translate-x-1/2 w-16 h-1.5 bg-[#0f3460] rounded-full cursor-pointer hover:bg-[#e94560]/50 transition-colors"
+          onClick={() => setIsOpen(false)}
+        />
+
+        <div className="flex justify-between items-center mb-2 border-b border-[#0f3460] pb-6">
+          <div className="flex-1 text-center">
+            <h3
+              className={`text-2xl font-black italic tracking-tighter uppercase ${isMyTurn ? "text-[#e94560]" : "text-[#a0a0a0]"}`}
+            >
+              {isMyTurn ? "It's Your Turn" : "Action Menu"}
+            </h3>
+            <p className="text-[10px] text-[#a0a0a0]/60 font-mono tracking-widest uppercase mt-1">
+              Player: {player.name}
+            </p>
+          </div>
+          <button
+            onClick={() => setIsOpen(false)}
+            className="absolute right-6 top-6 text-[#a0a0a0] hover:text-[#eaeaea] p-2 rounded-full hover:bg-[#0f3460] transition-colors"
+            title="Hide Menu"
+          >
+            <svg
+              className="w-7 h-7"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2.5}
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 pb-2">
+          <Button
+            variant="secondary"
+            className="w-full justify-center h-14 text-lg"
+            onClick={() => {
+              onActionSelect("take_1_coin");
+              setIsOpen(false);
+            }}
+            disabled={disabled || !isMyTurn}
+          >
+            Take 1 Coin
+          </Button>
+
+          <Button
+            variant="secondary"
+            className="w-full justify-center h-14 text-lg"
+            onClick={() => {
+              onActionSelect("take_2_coins");
+              setIsOpen(false);
+            }}
+            disabled={disabled || !isMyTurn}
+          >
+            Take 2 Coins
+          </Button>
+        </div>
+
+        {specialActionsAvailable.length > 0 && (
+          <div className="pt-2">
+            <p className="text-xs text-[#a0a0a0] mb-2 uppercase tracking-widest font-bold opacity-60">
+              Character Special Actions
+            </p>
+            <div className="space-y-3">
               {specialActionsAvailable.map((action) => (
                 <Button
                   key={action}
                   variant="success"
-                  className="w-full justify-start"
-                  onClick={() => onActionSelect(action)}
-                  disabled={disabled}
+                  className="w-full justify-center py-4 text-lg shadow-lg font-bold"
+                  onClick={() => {
+                    onActionSelect(action);
+                    setIsOpen(false);
+                  }}
+                  disabled={disabled || !isMyTurn}
                 >
                   {getActionLabel(action)}
                 </Button>
               ))}
             </div>
           </div>
-        </>
-      )}
+        )}
 
-      {player.coins >= 7 && (
-        <Button
-          variant="danger"
-          className="w-full justify-start"
-          onClick={() => onActionSelect('kill_7_coins')}
-          disabled={disabled}
-        >
-          Kill (7 coins)
-        </Button>
-      )}
+        <div className="pt-2 space-y-3">
+          {player.coins >= 7 && (
+            <Button
+              variant="danger"
+              className="w-full justify-center py-4 text-lg shadow-lg font-bold"
+              onClick={() => {
+                onActionSelect("kill_7_coins");
+                setIsOpen(false);
+              }}
+              disabled={disabled || !isMyTurn}
+            >
+              Kill Player (7 coins)
+            </Button>
+          )}
 
-      <div className="border-t border-[#0f3460] pt-3">
-        <Button
-          variant="ghost"
-          className="w-full justify-start"
-          onClick={onBluffSelect}
-          disabled={disabled}
-        >
-          Bluff
-        </Button>
+          <Button
+            variant="ghost"
+            className="w-full justify-center h-12 bg-[#0f346050] text-[#a0a0a0] hover:text-white"
+            onClick={() => {
+              onBluffSelect();
+              setIsOpen(false);
+            }}
+            disabled={disabled || !isMyTurn}
+          >
+            Bluff / Challenge
+          </Button>
+        </div>
+
+        {/* Extra padding for safe areas on mobile */}
+        <div className="h-4" />
       </div>
-    </div>
+    </>
   );
 }

@@ -330,26 +330,26 @@ export default function GamePage() {
   const currentPlayer = gameState.players[gameState.currentTurnIndex];
 
   return (
-    <div className="min-h-screen bg-[#1a1a2e] flex flex-col p-4">
+    <div className="h-dvh bg-[#1a1a2e] flex flex-col p-4 overflow-hidden relative">
       {/* Top: Player Bar */}
       <div className="mb-4">
         <PlayerBar
-          players={gameState.players}
+          players={gameState?.players || []}
           currentPlayerId={currentPlayer?.id || null}
-          myPlayerId={myPlayerId}
+          myPlayerId={myPlayerId || undefined}
         />
       </div>
 
       {/* Middle: Current player info */}
-      <div className="flex-1 flex flex-col items-center justify-center">
+      <div className="flex-1 flex flex-col items-center justify-start py-8 overflow-y-auto scrollbar-hide">
         {currentPlayer && (
           <div className="text-center mb-4">
             <p className="text-lg text-[#a0a0a0]">
               {currentPlayer.name}'s turn
             </p>
-            {(gameState.actionTimer !== null || timeLeft !== null) && (
+            {(gameState?.actionTimer !== null || timeLeft !== null) && (
               <div className="mt-2">
-                <Timer timeLeft={timeLeft ?? gameState.actionTimer ?? 0} />
+                <Timer timeLeft={timeLeft ?? gameState?.actionTimer ?? 0} />
               </div>
             )}
           </div>
@@ -366,29 +366,29 @@ export default function GamePage() {
         )}
       </div>
 
-      {/* Bottom: Action Menu */}
-      <div className="mt-4">
-        {isMyTurn && myPlayer && (
-          <ActionMenu
-            player={myPlayer}
-            onActionSelect={handleActionSelect}
-            onBluffSelect={handleBluffSelect}
-          />
-        )}
+      {/* Bottom: Action Menu & Status */}
+      {myPlayer && (
+        <ActionMenu
+          player={myPlayer}
+          onActionSelect={handleActionSelect}
+          onBluffSelect={handleBluffSelect}
+          isMyTurn={isMyTurn}
+        />
+      )}
 
-        {!isMyTurn && !gameState.pendingAction && (
-          <div className="text-center p-4 bg-[#16213e] rounded-lg">
-            <p className="text-[#a0a0a0]">
-              Waiting for {currentPlayer?.name}...
-            </p>
-          </div>
-        )}
-      </div>
+      {!isMyTurn && !gameState?.pendingAction && (
+        <div className="fixed bottom-20 left-4 right-4 text-center p-3 bg-[#16213e]/80 backdrop-blur-sm rounded-xl border border-[#0f3460] z-20">
+          <p className="text-[#a0a0a0] flex items-center justify-center gap-2">
+            <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+            Waiting for {currentPlayer?.name}...
+          </p>
+        </div>
+      )}
 
       {/* Modals */}
       <TargetSelector
         isOpen={showTargetSelector && pendingAction?.type !== "guess_colonel"}
-        players={gameState.players}
+        players={gameState?.players || []}
         excludeId={myPlayerId || undefined}
         title={
           pendingAction?.type === "inspect_policeman"
@@ -421,22 +421,22 @@ export default function GamePage() {
       />
 
       <ActionNotification
-        isOpen={!!gameState.pendingAction}
-        action={gameState.pendingAction}
+        isOpen={!!gameState?.pendingAction}
+        action={gameState?.pendingAction || null}
         currentPlayer={
-          gameState.players.find(
-            (p) => p.id === gameState.pendingAction?.playerId,
+          gameState?.players.find(
+            (p) => p.id === gameState?.pendingAction?.playerId,
           ) || null
         }
-        timeLeft={timeLeft ?? gameState.actionTimer ?? 0}
+        timeLeft={timeLeft ?? gameState?.actionTimer ?? 0}
         canCounter={
           !!myPlayer &&
-          !!gameState.pendingAction &&
+          !!gameState?.pendingAction &&
           gameState.pendingAction.playerId !== myPlayerId
         }
         canCallBluff={
           !!myPlayer &&
-          !!gameState.pendingAction &&
+          !!gameState?.pendingAction &&
           gameState.pendingAction.playerId !== myPlayerId &&
           !!gameState.pendingAction.claimedCharacter
         }
