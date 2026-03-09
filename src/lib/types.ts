@@ -20,9 +20,18 @@ export type ActionType =
   | "exchange_politician"
   | "bluff";
 
-export type ResponseType = "pass" | "counter" | "call_bluff";
+export type ResponseType =
+  | "pass"
+  | "counter"
+  | "call_bluff"
+  | "take_one_as_fisc";
 
-export type ActionStatus = "pending" | "counter_phase" | "resolved" | "blocked";
+export type ActionStatus =
+  | "pending"
+  | "counter_phase"
+  | "fisc_phase"
+  | "resolved"
+  | "blocked";
 
 export type RoomStatus = "idle" | "waiting" | "playing" | "finished";
 
@@ -60,6 +69,7 @@ export interface ActionResponse {
   playerId: string;
   type: ResponseType;
   characterUsed?: CharacterType;
+  targetId?: string;
   timestamp: number;
 }
 

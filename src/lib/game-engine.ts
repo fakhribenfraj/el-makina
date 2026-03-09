@@ -107,21 +107,65 @@ export class GameEngine {
     if (response.type === "call_bluff") {
       if (this.state.pendingAction.status === "counter_phase") {
         this.resolveCounterBluff(this.state.pendingAction, response.playerId);
+      } else if (this.state.pendingAction.status === "fisc_phase") {
+        if (response.targetId) {
+          this.resolveFiscBluff(
+            this.state.pendingAction,
+            response.playerId,
+            response.targetId,
+          );
+        }
       } else {
         this.resolveBluff(this.state.pendingAction, response.playerId);
       }
       return;
     }
 
-    // Handle Pass or Timeout
-    if (response.type === "pass" || response.playerId === "system") {
-      const passes = this.state.pendingAction.responses.filter(
-        (r) => r.type === "pass" || r.playerId === "system",
+    // Handle Pass or Timeout or take_one_as_fisc
+    if (
+      response.type === "pass" ||
+      response.type === "take_one_as_fisc" ||
+      response.playerId === "system"
+    ) {
+      if (this.state.pendingAction.status === "fisc_phase") {
+        const fiscClaimants = this.state.pendingAction.responses
+          .filter((r) => r.type === "take_one_as_fisc")
+          .map((r) => r.playerId);
+
+        const requiredPlayers = this.state.players.filter(
+          (p) => p.isAlive && !fiscClaimants.includes(p.id),
+        );
+
+        const fiscPasses = this.state.pendingAction.responses.filter(
+          (r) =>
+            r.type === "pass" &&
+            requiredPlayers.some((p) => p.id === r.playerId),
+        );
+
+        if (
+          fiscPasses.length >= requiredPlayers.length ||
+          response.playerId === "system"
+        ) {
+          this.resolveCurrentAction();
+        } else {
+          this.callbacks.broadcast({
+            type: "state_update",
+            gameState: this.state,
+          });
+        }
+        return;
+      }
+
+      const otherResponded = this.state.pendingAction.responses.filter(
+        (r) =>
+          r.type === "pass" ||
+          r.type === "take_one_as_fisc" ||
+          r.playerId === "system",
       );
 
-      // Check if everyone passed or if system forced resolution
+      // Check if everyone passed/responded
       if (
-        passes.length >= otherPlayersCount ||
+        otherResponded.length >= otherPlayersCount ||
         response.playerId === "system"
       ) {
         if (this.state.pendingAction.status === "counter_phase") {
@@ -133,10 +177,34 @@ export class GameEngine {
             gameState: this.state,
           });
 
-          // Stay on current player's turn as per user requirements
           this.state.pendingAction = null;
           this.state.actionTimer = null;
           this.clearTimer();
+
+          this.callbacks.broadcast({
+            type: "state_update",
+            gameState: this.state,
+          });
+        } else if (
+          this.state.pendingAction.type === "take_4_coins" &&
+          this.state.pendingAction.responses.some(
+            (r) => r.type === "take_one_as_fisc",
+          )
+        ) {
+          // Transition to fisc_phase
+          this.state.pendingAction.status = "fisc_phase";
+          // Remove old passes and system responses, keep take_one_as_fisc
+          this.state.pendingAction.responses =
+            this.state.pendingAction.responses.filter(
+              (r) => r.type === "take_one_as_fisc",
+            );
+
+          if (this.state.settings.timerDuration > 0) {
+            this.state.actionTimer = this.state.settings.timerDuration;
+            this.startResponseTimer();
+          } else {
+            this.state.actionTimer = null;
+          }
 
           this.callbacks.broadcast({
             type: "state_update",
@@ -147,7 +215,7 @@ export class GameEngine {
           this.resolveCurrentAction();
         }
       } else {
-        // Just Update state to show who has passed
+        // Just Update state to show who has responded
         this.callbacks.broadcast({
           type: "state_update",
           gameState: this.state,
@@ -305,12 +373,101 @@ export class GameEngine {
     }
   }
 
+  private resolveFiscBluff(
+    action: GameAction,
+    callerId: string,
+    fiscPlayerId: string,
+  ): void {
+    const fiscPlayer = this.state.players.find((p) => p.id === fiscPlayerId);
+    const caller = this.state.players.find((p) => p.id === callerId);
+
+    if (!fiscPlayer || !caller) {
+      return;
+    }
+
+    const isActuallyBluff = !fiscPlayer.cards.some(
+      (c) => c.character === "fisc",
+    );
+
+    if (isActuallyBluff) {
+      // Fisc player was lying
+      if (fiscPlayer.cards.length > 0) {
+        const lostCard = fiscPlayer.cards.shift()!;
+        this.state.deck.push({
+          ...lostCard,
+          isRevealed: false,
+          isKnown: false,
+        });
+      }
+      caller.coins += 3;
+
+      // Remove the fisc claim from responses so they don't take coins later
+      action.responses = action.responses.filter(
+        (r) => !(r.playerId === fiscPlayerId && r.type === "take_one_as_fisc"),
+      );
+
+      // If no more fiscs left, resolve
+      if (!action.responses.some((r) => r.type === "take_one_as_fisc")) {
+        this.resolveCurrentAction();
+        return;
+      }
+    } else {
+      // Fisc player was telling the truth
+      if (caller.cards.length > 0) {
+        const lostCard = caller.cards.shift()!;
+        this.state.deck.push({
+          ...lostCard,
+          isRevealed: false,
+          isKnown: false,
+        });
+      }
+      fiscPlayer.coins += 2;
+
+      // Replace the fisc player's card
+      const cardIndex = fiscPlayer.cards.findIndex(
+        (c) => c.character === "fisc",
+      );
+      if (cardIndex !== -1) {
+        const oldCard = fiscPlayer.cards.splice(cardIndex, 1)[0];
+        this.state.deck.push({ ...oldCard, isRevealed: false, isKnown: false });
+        this.state.deck = shuffle(this.state.deck);
+        fiscPlayer.cards.push(this.state.deck.shift()!);
+      }
+    }
+
+    this.callbacks.broadcast({
+      type: "state_update",
+      gameState: this.state,
+    });
+  }
+
   private resolveCurrentAction(): void {
     if (!this.state.pendingAction) return;
 
     const action = this.state.pendingAction;
     action.status = "resolved";
     this.state.lastAction = action;
+
+    // Handle Businessman penalty (Fisc taking 1 coin)
+    if (action.type === "take_4_coins") {
+      const fiscResponses = action.responses.filter(
+        (r) => r.type === "take_one_as_fisc",
+      );
+      const businessman = this.state.players.find(
+        (p) => p.id === action.playerId,
+      );
+      if (businessman) {
+        for (const resp of fiscResponses) {
+          const fiscPlayer = this.state.players.find(
+            (p) => p.id === resp.playerId,
+          );
+          if (fiscPlayer && businessman.coins >= 1) {
+            businessman.coins -= 1;
+            fiscPlayer.coins += 1;
+          }
+        }
+      }
+    }
 
     this.state = resolveAction(action, this.state);
 

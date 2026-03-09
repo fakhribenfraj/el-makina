@@ -12,6 +12,7 @@ import { TargetSelector } from "@/components/game/TargetSelector";
 import { GuessModal } from "@/components/game/GuessModal";
 import { InspectorModal } from "@/components/game/InspectorModal";
 import { GameOverModal } from "@/components/game/GameOverModal";
+import { FiscPhaseNotification } from "@/components/game/FiscPhaseNotification";
 import { CoinDisplay } from "@/components/ui/CoinDisplay";
 import { Timer } from "@/components/ui/Timer";
 import { Button } from "@/components/ui/Button";
@@ -286,6 +287,41 @@ export default function GamePage() {
     }
   };
 
+  const handleTakeOneAsFisc = () => {
+    const response: ActionResponse = {
+      playerId: myPlayerId || "",
+      type: "take_one_as_fisc" as const,
+      timestamp: Date.now(),
+    };
+
+    if (isHost && gameEngine) {
+      gameEngine.processResponse(response);
+      const newState = gameEngine.getState();
+      updateGameState(newState);
+      broadcast({ type: "state_update", gameState: newState });
+    } else {
+      broadcast({ type: "action_responded", response });
+    }
+  };
+
+  const handleFiscCallBluff = (targetId: string) => {
+    const response: ActionResponse = {
+      playerId: myPlayerId || "",
+      type: "call_bluff" as const,
+      targetId,
+      timestamp: Date.now(),
+    };
+
+    if (isHost && gameEngine) {
+      gameEngine.processResponse(response);
+      const newState = gameEngine.getState();
+      updateGameState(newState);
+      broadcast({ type: "state_update", gameState: newState });
+    } else {
+      broadcast({ type: "action_responded", response });
+    }
+  };
+
   const handlePass = () => {
     const response: ActionResponse = {
       playerId: myPlayerId || "",
@@ -440,6 +476,22 @@ export default function GamePage() {
             onCounter={() => handleCounter("fisc")}
             onCallBluff={handleCallBluff}
             onPass={handlePass}
+            onTakeOneAsFisc={handleTakeOneAsFisc}
+          />
+        )}
+
+      {gameState?.pendingAction?.status === "fisc_phase" &&
+        (gameState.pendingAction.playerId === myPlayerId ||
+          gameState.pendingAction.responses.some(
+            (r) => r.playerId === myPlayerId && r.type === "pass",
+          )) && (
+          <FiscPhaseNotification
+            isOpen={true}
+            action={gameState.pendingAction}
+            gameState={gameState}
+            myPlayerId={myPlayerId || ""}
+            onCallBluff={handleFiscCallBluff}
+            onPass={handlePass}
           />
         )}
 
@@ -457,7 +509,9 @@ export default function GamePage() {
               <p className="text-[#a0a0a0]">
                 {gameState.pendingAction.status === "counter_phase"
                   ? "Someone might challenge your block..."
-                  : "Everyone is deciding if you are lying or not..."}
+                  : gameState.pendingAction.status === "fisc_phase"
+                    ? "Other players are deciding if you are telling the truth..."
+                    : "Everyone is deciding if you are telling the truth..."}
               </p>
               {gameState.settings.timerDuration > 0 && (
                 <div className="mt-6 flex justify-center">

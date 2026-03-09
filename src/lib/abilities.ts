@@ -32,16 +32,6 @@ export function resolveAction(
 
     case "take_4_coins":
       player.coins += 4;
-      const fisc = newState.players.find(
-        (p) =>
-          p.isAlive &&
-          p.cards.some((c) => c.character === "fisc") &&
-          p.id !== player.id,
-      );
-      if (fisc && fisc.coins >= 1) {
-        fisc.coins -= 1;
-        player.coins += 1;
-      }
       break;
 
     case "steal_2_coins":

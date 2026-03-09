@@ -18,6 +18,7 @@ interface ActionNotificationProps {
   onCounter: () => void;
   onCallBluff: () => void;
   onPass: () => void;
+  onTakeOneAsFisc?: () => void;
 }
 
 export function ActionNotification({
@@ -32,6 +33,7 @@ export function ActionNotification({
   onCounter,
   onCallBluff,
   onPass,
+  onTakeOneAsFisc,
 }: ActionNotificationProps) {
   if (!action || !currentPlayer) return null;
 
@@ -107,7 +109,14 @@ export function ActionNotification({
         )}
 
         <div
-          className={`grid ${canCallBluff || action.type === "take_2_coins" || action.status === "counter_phase" ? "grid-cols-2" : "grid-cols-1"} gap-4`}
+          className={`grid ${
+            action.status === "counter_phase" ||
+            canCallBluff ||
+            action.type === "take_2_coins" ||
+            action.type === "take_4_coins"
+              ? "grid-cols-2"
+              : "grid-cols-1"
+          } gap-4`}
         >
           {action.status === "counter_phase" ? (
             <>
@@ -138,6 +147,16 @@ export function ActionNotification({
                 </Button>
               )}
 
+              {action.type === "take_4_coins" && (
+                <Button
+                  variant="primary"
+                  className="w-full py-8 text-xl font-bold uppercase tracking-tight bg-[#0f3460] border-2 border-[#ff9d00] shadow-[0_0_15px_rgba(255,157,0,0.3)]"
+                  onClick={onTakeOneAsFisc}
+                >
+                  Take one as fisc
+                </Button>
+              )}
+
               {canCallBluff && (
                 <Button
                   variant="danger"
@@ -150,7 +169,7 @@ export function ActionNotification({
 
               <Button
                 variant="secondary"
-                className="w-full py-8 text-xl font-bold uppercase tracking-tight bg-[#16213e] hover:bg-[#1a1a2e]"
+                className="w-full py-8 text-xl font-bold uppercase tracking-tight bg-[#16213e] hover:bg-[#1a1a2e] col-span-1"
                 onClick={onPass}
               >
                 Pass
